@@ -1,21 +1,3 @@
-"""
-agent.py — AI Reasoning Layer (Claude API via Anthropic SDK)
-============================================================
-This module takes a conversation history and returns the agent's next reply.
-
-The system prompt is the agent's "brain" — it defines:
-  - Its role (IT helpdesk specialist)
-  - Its escalation logic
-  - How it structures its responses for voice (no markdown, short sentences)
-  - What actions it can signal (future: trigger remote tools)
-
-Install:
-    pip install anthropic
-
-Set env var:
-    ANTHROPIC_API_KEY=your_key_here
-"""
-
 import os
 import logging
 from anthropic import Anthropic
@@ -52,15 +34,16 @@ SUPPORTED ISSUE CATEGORIES (you handle these autonomously):
 - Disk space warnings
 
 ESCALATION:
-- If the issue is hardware failure, data loss, or a security breach → tell the user
+- If the issue is hardware failure, data loss, or a security breach, tell the user
   you are logging an urgent ticket and a human technician will call them back.
 - Always end escalated calls with: "I've logged a ticket for you. A technician will
   follow up shortly. Have a great day."
 
 TICKET LOGGING SIGNAL:
-- When you have enough information to log a ticket (even a resolved one), end your
-  response with the tag: [LOG_TICKET: <one-line summary of issue and resolution>]
-  This tag will be stripped from the spoken response automatically.
+- When you have enough information to log a ticket, end your response with:
+  [LOG_TICKET: <one-line summary of issue and resolution>]
+- This tag will be stripped from the spoken response automatically.
+- Always include this tag when ending a call, whether resolved or escalated.
 """
 
 
@@ -69,24 +52,17 @@ def _get_client() -> Anthropic:
     if _client is None:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
-            raise EnvironmentError("ANTHROPIC_API_KEY environment variable not set.")
+            raise EnvironmentError("ANTHROPIC_API_KEY not set.")
         _client = Anthropic(api_key=api_key)
     return _client
 
 
 def get_agent_response(history: list[dict]) -> str:
-    """
-    Given a conversation history (list of {"role": "user"/"assistant", "content": str}),
-    call Claude and return the agent's next reply.
-
-    Strips any [LOG_TICKET:...] tags before returning (those are handled separately).
-    """
     client = _get_client()
 
-    log.info(f"Sending {len(history)} message(s) to Claude...")
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=300,  # Short responses for voice
+        max_tokens=300,
         system=SYSTEM_PROMPT,
         messages=history,
     )
@@ -94,29 +70,31 @@ def get_agent_response(history: list[dict]) -> str:
     raw_reply = response.content[0].text.strip()
     log.info(f"Raw Claude response: '{raw_reply}'")
 
-    # Extract and handle ticket logging signal (future: wire to ticketing module)
-    ticket_signal = None
+    # Extract ticket signal and fire logger if present
+    ticket_summary = None
     if "[LOG_TICKET:" in raw_reply:
         start = raw_reply.index("[LOG_TICKET:")
         end = raw_reply.index("]", start) + 1
         ticket_signal = raw_reply[start:end]
-        raw_reply = raw_reply[:start].strip() + raw_reply[end:].strip()
-        log.info(f"Ticket signal detected: {ticket_signal}")
-        # TODO: call ticket_logger.log_ticket(ticket_signal) in Layer 6
+        ticket_summary = ticket_signal[len("[LOG_TICKET:"):-1].strip()
+        raw_reply = (raw_reply[:start] + raw_reply[end:]).strip()
+        log.info(f"Ticket signal: {ticket_summary}")
+
+        # Fire and forget — don't block the voice response
+        try:
+            from ticket_logger import log_ticket
+            log_ticket(summary=ticket_summary, transcript=history)
+        except Exception as e:
+            log.error(f"Ticket logging failed: {e}")
 
     return raw_reply
 
 
-# ---------------------------------------------------------------------------
-# Quick local test — simulates a conversation without Twilio
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import sys
     logging.basicConfig(level=logging.INFO)
-
     print("IT Helpdesk Agent — text mode (type 'quit' to exit)\n")
     history = []
-
     while True:
         user_input = input("You: ").strip()
         if user_input.lower() in ("quit", "exit"):
