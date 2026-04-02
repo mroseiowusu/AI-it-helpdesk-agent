@@ -136,3 +136,63 @@ async def respond_to_caller(request: Request):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/voice/opt-in-consent-collector", response_class=HTMLResponse)
+async def opt_in_consent():
+    return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IT Helpdesk — SMS Consent</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    p { font-size: 15px; line-height: 1.6; color: #444; }
+    .card { border: 1px solid #e5e5e5; border-radius: 12px; padding: 28px; margin: 24px 0; }
+    label { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: #333; cursor: pointer; }
+    input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; }
+    .btn { display: block; width: 100%; padding: 14px; background: #1a1a1a; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 20px; }
+    .btn:hover { background: #333; }
+    .fine { font-size: 12px; color: #888; margin-top: 16px; line-height: 1.5; }
+    .badge { display: inline-block; background: #f0f0f0; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #555; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <span class="badge">IT Helpdesk Agent</span>
+  <h1>Stay updated on your support ticket</h1>
+  <p>By providing your phone number, you agree to receive SMS notifications from the IT Helpdesk Agent regarding your open support tickets and resolutions.</p>
+
+  <div class="card">
+    <label>
+      <input type="checkbox" id="consent" />
+      <span>I agree to receive SMS messages from the IT Helpdesk team at the number I provide. Message and data rates may apply. Reply STOP at any time to unsubscribe.</span>
+    </label>
+
+    <button class="btn" onclick="submit()">Confirm and continue</button>
+
+    <p class="fine">
+      Message frequency varies. Message and data rates may apply.
+      Reply HELP for help or STOP to cancel.
+      View our <a href="#">Privacy Policy</a>.
+    </p>
+  </div>
+
+  <script>
+    function submit() {
+      if (!document.getElementById('consent').checked) {
+        alert('Please check the box to confirm your consent before continuing.');
+        return;
+      }
+      document.querySelector('.btn').textContent = 'Consent recorded. Thank you!';
+      document.querySelector('.btn').style.background = '#2d6a2d';
+      document.querySelector('.btn').disabled = true;
+    }
+  </script>
+</body>
+</html>
+"""
