@@ -14,17 +14,20 @@ VOICE RULES (critical):
 - Never say "I cannot" without offering a next step.
 - Spell out abbreviations on first use.
 
+SKILL RUNBOOKS:
+- If a skill runbook is provided in context, follow its diagnosis steps and fixes exactly.
+- Reference the runbook's specific fix steps rather than giving generic advice.
+- If the runbook says to escalate, escalate.
+
+REMOTE DIAGNOSTICS:
+- If diagnostic data from the user's machine is provided, reference it specifically.
+- Say things like "I can see your CPU is at 94 percent" not generic advice.
+
 DIAGNOSTIC APPROACH:
 1. Clarify the issue with one targeted question at a time.
 2. Once you understand the problem, state your diagnosis clearly.
 3. Walk the user through the fix step by step, one step per turn.
 4. Confirm each step completed before moving to the next.
-5. If you have remote access data available, reference it specifically.
-
-REMOTE ACCESS:
-- If diagnostic data from the user's machine is provided in the context, use it.
-- Reference specific findings: "I can see your CPU is at 94 percent" not generic advice.
-- If you need remote access and don't have it yet, signal with: [NEED_SSH: <host> <platform>]
 
 SUPPORTED ISSUE CATEGORIES:
 - Password resets and account lockouts
@@ -62,36 +65,38 @@ def _get_client() -> Anthropic:
 def get_agent_response(history: list[dict], ssh_context: str = None) -> str:
     client = _get_client()
 
-    messages = list(history)
+    # Build dynamic system prompt with skill + SSH context
+    system = SYSTEM_PROMPT
 
-    # Inject SSH diagnostic data if available
+    # Inject matching skill runbook
+    try:
+        from skill_loader import get_skill_context
+        skill_context = get_skill_context(history)
+        if skill_context:
+            system = system + "\n\n" + skill_context
+            log.info("Skill runbook injected into context.")
+    except Exception as e:
+        log.error(f"Skill loader error: {e}")
+
+    # Inject SSH diagnostics
     if ssh_context:
-        messages = [{"role": "user", "content": f"[REMOTE DIAGNOSTIC DATA FROM USER'S MACHINE]\n{ssh_context}\n[END DIAGNOSTIC DATA]"}] + messages
+        system = system + f"\n\n--- REMOTE DIAGNOSTIC DATA ---\n{ssh_context}\n--- END DIAGNOSTICS ---"
 
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=300,
-        system=SYSTEM_PROMPT,
-        messages=messages,
+        system=system,
+        messages=history,
     )
 
     raw_reply = response.content[0].text.strip()
     log.info(f"Raw Claude response: '{raw_reply}'")
 
-    # Handle SSH request signal
-    if "[NEED_SSH:" in raw_reply:
-        start = raw_reply.index("[NEED_SSH:")
-        end = raw_reply.index("]", start) + 1
-        ssh_signal = raw_reply[start+len("[NEED_SSH:"):-1].strip()
-        raw_reply = (raw_reply[:start] + raw_reply[end:]).strip()
-        log.info(f"SSH requested: {ssh_signal}")
-        # Future: parse host/platform and trigger collect_diagnostics()
-
     # Handle ticket logging signal
     if "[LOG_TICKET:" in raw_reply:
         start = raw_reply.index("[LOG_TICKET:")
         end = raw_reply.index("]", start) + 1
-        ticket_summary = raw_reply[start+len("[LOG_TICKET:"):-1].strip()
+        ticket_summary = raw_reply[start + len("[LOG_TICKET:"):-1].strip()
         raw_reply = (raw_reply[:start] + raw_reply[end:]).strip()
         log.info(f"Ticket signal: {ticket_summary}")
         try:
