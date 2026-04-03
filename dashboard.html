@@ -318,7 +318,7 @@ function fmt(n) { return n !== undefined ? n : '—'; }
 
 async function loadLinearTickets() {
   try {
-    const res = await fetch('https://api.linear.app/graphql', {
+    const res = await fetch(`${BASE}/api/tickets`, {
       method: 'POST',
       headers: { 'Authorization': LINEAR_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: `{ issues(filter:{team:{id:{eq:"${TEAM_ID}"}}},orderBy:createdAt,last:50){nodes{id identifier title priority state{name}assignee{name}createdAt}}}`})
