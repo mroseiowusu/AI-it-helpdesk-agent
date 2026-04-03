@@ -322,7 +322,7 @@ async function loadLinearTickets() {
     const data = await res.json();
     const issues = data?.data?.issues?.nodes || [];
     const total = issues.length;
-    const resolved = issues.filter(i => i.state?.name?.toLowerCase().includes('done') || i.state?.name?.toLowerCase().includes('resolved') || i.state?.name?.toLowerCase().includes('complete')).length;
+    const resolved = issues.filter(i => ['done','resolved','complete','cancelled'].some(s => i.state?.name?.toLowerCase().includes(s))).length;
     const urgent = issues.filter(i => i.priority === 1).length;
     const rate = total > 0 ? Math.round((resolved/total)*100) + '%' : '—';
     document.getElementById('m-total').textContent = total;
@@ -334,9 +334,9 @@ async function loadLinearTickets() {
     document.getElementById('a-urgent').textContent = urgent;
     document.getElementById('linear-count').textContent = total;
     document.getElementById('sys-tickets').textContent = total;
-    const pColors = {1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
-    const pNames = {1:'Urgent',2:'High',3:'Medium',4:'Low'};
-    const pClass = {1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
+    const pColors = {0:'#aaa',1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
+    const pNames = {0:'None',1:'Urgent',2:'High',3:'Medium',4:'Low'};
+    const pClass = {0:'b-open',1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
     const rows = issues.slice(0,12).map(i => `
       <div class="ticket-row">
         <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
