@@ -217,6 +217,14 @@ async def websocket_calls(websocket: WebSocket):
         if websocket in watchers:
             watchers.remove(websocket)
 
+
+@app.get('/dashboard', response_class=HTMLResponse)
+@app.get('/dashboard.html', response_class=HTMLResponse)
+async def dashboard():
+    from pathlib import Path
+    f = Path(__file__).parent / 'dashboard.html'
+    return f.read_text(encoding='utf-8')
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
