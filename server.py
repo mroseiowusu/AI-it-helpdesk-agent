@@ -77,6 +77,8 @@ async def inbound_call(request: Request):
         "history": [], "employee_id": None, "ssh_context": None,
         "awaiting_emp_id": True, "operator": False
     }
+    _call_stats["total"] += 1
+    _call_stats["today"] = _call_stats.get("today", 0) + 1
     await broadcast({"type": "call_start", "call_sid": call_sid})
     greeting = (
         "Hello, this is the I T helpdesk assistant. "
@@ -342,3 +344,78 @@ async def dashboard():
 @app.get("/voice/opt-in-consent-collector", response_class=HTMLResponse)
 async def opt_in_consent():
     return """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>IT Helpdesk — SMS Consent</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:60px auto;padding:0 24px;color:#1a1a1a}h1{font-size:22px;font-weight:600}p{font-size:15px;line-height:1.6;color:#444}.card{border:1px solid #e5e5e5;border-radius:12px;padding:28px;margin:24px 0}label{display:flex;align-items:flex-start;gap:12px;font-size:14px;color:#333;cursor:pointer}input[type=checkbox]{width:18px;height:18px;flex-shrink:0;margin-top:2px}.btn{display:block;width:100%;padding:14px;background:#1a1a1a;color:white;border:none;border-radius:8px;font-size:15px;font-weight:500;cursor:pointer;margin-top:20px;box-sizing:border-box}.fine{font-size:12px;color:#888;margin-top:16px;line-height:1.5}.badge{display:inline-block;background:#f0f0f0;border-radius:6px;padding:4px 10px;font-size:12px;color:#555;margin-bottom:20px}</style></head><body><span class="badge">IT Helpdesk Agent</span><h1>Stay updated on your support ticket</h1><p>By providing your phone number, you agree to receive SMS notifications from the IT Helpdesk Agent about your open tickets and resolutions.</p><div class="card"><label><input type="checkbox" id="consent"/><span>I agree to receive SMS messages from the IT Helpdesk team. Message and data rates may apply. Reply STOP to unsubscribe.</span></label><button class="btn" onclick="submit()">Confirm and continue</button><p class="fine">Message frequency varies. Reply HELP for help or STOP to cancel.</p></div><script>function submit(){if(!document.getElementById('consent').checked){alert('Please check the box first.');return;}var b=document.querySelector('.btn');b.textContent='Consent recorded. Thank you!';b.style.background='#2d6a2d';b.disabled=true;}</script></body></html>"""
+
+
+import json as _json
+from pathlib import Path as _Path
+from datetime import datetime as _dt
+
+_call_stats = {"total": 0, "today": 0, "last_date": None}
+_SKILLS_DIR = _Path(__file__).parent / "skills"
+_VOICE_CONFIG = {"provider": "polly", "voice": "Polly.Joanna"}
+
+@app.get("/api/stats")
+async def get_stats():
+    today = _dt.utcnow().strftime("%Y-%m-%d")
+    if _call_stats["last_date"] != today:
+        _call_stats["today"] = 0
+        _call_stats["last_date"] = today
+    return {
+        "calls_total": _call_stats["total"],
+        "calls_today": _call_stats["today"],
+        "active_calls": len(sessions),
+        "date": today
+    }
+
+@app.get("/api/skills")
+async def list_skills():
+    skills = []
+    for f in sorted(_SKILLS_DIR.glob("*.md")):
+        content = f.read_text(encoding="utf-8")
+        skills.append({
+            "name": f.name,
+            "size": len(content),
+            "lines": content.count("\n"),
+            "modified": f.stat().st_mtime,
+        })
+    return {"skills": skills}
+
+@app.get("/api/skills/{name}")
+async def get_skill(name: str):
+    f = _SKILLS_DIR / name
+    if not f.exists() or not name.endswith(".md"):
+        return {"error": "Not found"}
+    return {"name": name, "content": f.read_text(encoding="utf-8")}
+
+@app.post("/api/skills/{name}")
+async def save_skill(name: str, request: Request):
+    if not name.endswith(".md"):
+        return {"error": "Must be a .md file"}
+    body = await request.json()
+    content = body.get("content", "")
+    _SKILLS_DIR.mkdir(exist_ok=True)
+    (_SKILLS_DIR / name).write_text(content, encoding="utf-8")
+    log.info(f"Skill saved: {name} ({len(content)} chars)")
+    return {"status": "ok", "name": name, "size": len(content)}
+
+@app.delete("/api/skills/{name}")
+async def delete_skill(name: str):
+    f = _SKILLS_DIR / name
+    if not f.exists():
+        return {"error": "Not found"}
+    f.unlink()
+    log.info(f"Skill deleted: {name}")
+    return {"status": "ok"}
+
+@app.get("/api/voice")
+async def get_voice():
+    return _VOICE_CONFIG
+
+@app.post("/api/voice")
+async def set_voice(request: Request):
+    body = await request.json()
+    _VOICE_CONFIG["provider"] = body.get("provider", "polly")
+    _VOICE_CONFIG["voice"] = body.get("voice", "Polly.Joanna")
+    _VOICE_CONFIG["api_key"] = body.get("api_key", "")
+    log.info(f"Voice config updated: {_VOICE_CONFIG['provider']} / {_VOICE_CONFIG['voice']}")
+    return {"status": "ok", "config": _VOICE_CONFIG}
