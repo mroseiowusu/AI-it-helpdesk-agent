@@ -511,6 +511,137 @@ async function sendWhisper(sid) {
 
 const empNames = {EMP001:'Alice Johnson',EMP002:'Bob Smith',EMP003:'Carol White',EMP004:'Dave Brown'};
 
+let _editingSkill = null;
+
+async function loadSkillList() {
+  try {
+    const data = await (await fetch(`${BASE}/api/skills`)).json();
+    const html = (data.skills || []).map(s => `
+      <div class="skill-r" style="cursor:pointer" onclick="editSkill('${s.name}')">
+        <span class="skill-n">${s.name}</span>
+        <div class="skill-track"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
+        <span class="skill-c" style="font-size:9px;color:#3B6D11">${s.lines}L</span>
+      </div>`).join('');
+    document.getElementById('skill-list').innerHTML = html || '<div style="color:#aaa;font-size:12px">No skills yet</div>';
+  } catch(e) { console.error('Skills error:', e); }
+}
+
+async function editSkill(name) {
+  _editingSkill = name;
+  const data = await (await fetch(`${BASE}/api/skills/${name}`)).json();
+  document.getElementById('edit-skill-title').textContent = 'Editing: ' + name;
+  document.getElementById('edit-skill-content').value = data.content || '';
+  document.getElementById('edit-skill-editor').classList.add('open');
+  document.getElementById('new-skill-editor').classList.remove('open');
+}
+
+async function saveEditSkill() {
+  if(!_editingSkill) return;
+  const content = document.getElementById('edit-skill-content').value;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill updated: ${_editingSkill}`,'OK');
+}
+
+async function deleteSkill() {
+  if(!_editingSkill) return;
+  if(!confirm(`Delete ${_editingSkill}? This cannot be undone.`)) return;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {method:'DELETE'});
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill deleted: ${_editingSkill}`,'WARN');
+}
+
+function hideEditSkill() {
+  document.getElementById('edit-skill-editor').classList.remove('open');
+  _editingSkill = null;
+}
+
+function showNewSkill() {
+  document.getElementById('new-skill-editor').classList.add('open');
+  document.getElementById('edit-skill-editor').classList.remove('open');
+  document.getElementById('new-skill-name').focus();
+}
+
+function hideNewSkill() {
+  document.getElementById('new-skill-editor').classList.remove('open');
+  document.getElementById('new-skill-content').value = '';
+  document.getElementById('new-skill-name').value = '';
+}
+
+async function saveNewSkill() {
+  let name = document.getElementById('new-skill-name').value.trim();
+  if(!name) { alert('Enter a filename'); return; }
+  if(!name.endsWith('.md')) name += '.md';
+  const content = document.getElementById('new-skill-content').value;
+  await fetch(`${BASE}/api/skills/${name}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  hideNewSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`New skill created: ${name}`,'OK');
+}
+
+async function uploadSkill(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const content = await file.text();
+  await fetch(`${BASE}/api/skills/${file.name}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  input.value = '';
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill uploaded: ${file.name}`,'OK');
+}
+
+function selectVoice(el) {
+  document.querySelectorAll('.voice-opt').forEach(v => v.classList.remove('selected'));
+  el.classList.add('selected');
+  const provider = el.dataset.provider;
+  const needsKey = provider !== 'polly';
+  const keyInput = document.getElementById('voice-api-key');
+  keyInput.placeholder = needsKey ? `${provider} API key (required)` : 'No API key needed for Polly';
+  keyInput.style.opacity = needsKey ? '1' : '0.4';
+}
+
+async function applyVoice() {
+  const selected = document.querySelector('.voice-opt.selected');
+  if(!selected) return;
+  const provider = selected.dataset.provider;
+  const voice = selected.dataset.voice;
+  const api_key = document.getElementById('voice-api-key').value.trim();
+  const res = await fetch(`${BASE}/api/voice`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({provider, voice, api_key})
+  });
+  const data = await res.json();
+  const statusEl = document.getElementById('voice-status');
+  if(data.status === 'ok') {
+    statusEl.textContent = `✓ Active: ${voice} via ${provider}`;
+    statusEl.style.color = '#3B6D11';
+    addLog(now(),'SYS',`Voice switched to ${voice} (${provider})`,'OK');
+  } else {
+    statusEl.textContent = 'Error applying voice';
+    statusEl.style.color = '#A32D2D';
+  }
+}
+
+async function loadStats() {
+  try {
+    const data = await (await fetch(`${BASE}/api/stats`)).json();
+    const t = document.getElementById('stat-total');
+    const d = document.getElementById('stat-today');
+    if(t) t.textContent = data.calls_total;
+    if(d) d.textContent = data.calls_today;
+  } catch(e) {}
+}
+
 async function loadAdminData() {
   try {
     const data = await (await fetch(`${BASE}/api/health`)).json();
@@ -595,6 +726,137 @@ async function loadHealthData() {
   } catch(e) {
     addLog(now(),'SYS','Health check failed: '+e.message,'ERR');
   }
+}
+
+let _editingSkill = null;
+
+async function loadSkillList() {
+  try {
+    const data = await (await fetch(`${BASE}/api/skills`)).json();
+    const html = (data.skills || []).map(s => `
+      <div class="skill-r" style="cursor:pointer" onclick="editSkill('${s.name}')">
+        <span class="skill-n">${s.name}</span>
+        <div class="skill-track"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
+        <span class="skill-c" style="font-size:9px;color:#3B6D11">${s.lines}L</span>
+      </div>`).join('');
+    document.getElementById('skill-list').innerHTML = html || '<div style="color:#aaa;font-size:12px">No skills yet</div>';
+  } catch(e) { console.error('Skills error:', e); }
+}
+
+async function editSkill(name) {
+  _editingSkill = name;
+  const data = await (await fetch(`${BASE}/api/skills/${name}`)).json();
+  document.getElementById('edit-skill-title').textContent = 'Editing: ' + name;
+  document.getElementById('edit-skill-content').value = data.content || '';
+  document.getElementById('edit-skill-editor').classList.add('open');
+  document.getElementById('new-skill-editor').classList.remove('open');
+}
+
+async function saveEditSkill() {
+  if(!_editingSkill) return;
+  const content = document.getElementById('edit-skill-content').value;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill updated: ${_editingSkill}`,'OK');
+}
+
+async function deleteSkill() {
+  if(!_editingSkill) return;
+  if(!confirm(`Delete ${_editingSkill}? This cannot be undone.`)) return;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {method:'DELETE'});
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill deleted: ${_editingSkill}`,'WARN');
+}
+
+function hideEditSkill() {
+  document.getElementById('edit-skill-editor').classList.remove('open');
+  _editingSkill = null;
+}
+
+function showNewSkill() {
+  document.getElementById('new-skill-editor').classList.add('open');
+  document.getElementById('edit-skill-editor').classList.remove('open');
+  document.getElementById('new-skill-name').focus();
+}
+
+function hideNewSkill() {
+  document.getElementById('new-skill-editor').classList.remove('open');
+  document.getElementById('new-skill-content').value = '';
+  document.getElementById('new-skill-name').value = '';
+}
+
+async function saveNewSkill() {
+  let name = document.getElementById('new-skill-name').value.trim();
+  if(!name) { alert('Enter a filename'); return; }
+  if(!name.endsWith('.md')) name += '.md';
+  const content = document.getElementById('new-skill-content').value;
+  await fetch(`${BASE}/api/skills/${name}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  hideNewSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`New skill created: ${name}`,'OK');
+}
+
+async function uploadSkill(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const content = await file.text();
+  await fetch(`${BASE}/api/skills/${file.name}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  input.value = '';
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill uploaded: ${file.name}`,'OK');
+}
+
+function selectVoice(el) {
+  document.querySelectorAll('.voice-opt').forEach(v => v.classList.remove('selected'));
+  el.classList.add('selected');
+  const provider = el.dataset.provider;
+  const needsKey = provider !== 'polly';
+  const keyInput = document.getElementById('voice-api-key');
+  keyInput.placeholder = needsKey ? `${provider} API key (required)` : 'No API key needed for Polly';
+  keyInput.style.opacity = needsKey ? '1' : '0.4';
+}
+
+async function applyVoice() {
+  const selected = document.querySelector('.voice-opt.selected');
+  if(!selected) return;
+  const provider = selected.dataset.provider;
+  const voice = selected.dataset.voice;
+  const api_key = document.getElementById('voice-api-key').value.trim();
+  const res = await fetch(`${BASE}/api/voice`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({provider, voice, api_key})
+  });
+  const data = await res.json();
+  const statusEl = document.getElementById('voice-status');
+  if(data.status === 'ok') {
+    statusEl.textContent = `✓ Active: ${voice} via ${provider}`;
+    statusEl.style.color = '#3B6D11';
+    addLog(now(),'SYS',`Voice switched to ${voice} (${provider})`,'OK');
+  } else {
+    statusEl.textContent = 'Error applying voice';
+    statusEl.style.color = '#A32D2D';
+  }
+}
+
+async function loadStats() {
+  try {
+    const data = await (await fetch(`${BASE}/api/stats`)).json();
+    const t = document.getElementById('stat-total');
+    const d = document.getElementById('stat-today');
+    if(t) t.textContent = data.calls_total;
+    if(d) d.textContent = data.calls_today;
+  } catch(e) {}
 }
 
 async function loadAdminData() {
