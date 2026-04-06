@@ -180,14 +180,31 @@
 
 <div id="analytics" class="content">
   <div class="grid4" style="margin-bottom:16px">
-    <div class="metric"><div class="metric-n" id="a-total">—</div><div class="metric-l">All time tickets</div></div>
-    <div class="metric"><div class="metric-n" id="a-rate" style="color:#3B6D11">—</div><div class="metric-l">Resolution rate</div></div>
-    <div class="metric"><div class="metric-n" id="a-urgent" style="color:#A32D2D">—</div><div class="metric-l">Escalations</div></div>
-    <div class="metric"><div class="metric-n" id="a-skills">6</div><div class="metric-l">Skill files loaded</div></div>
+    <div class="metric"><div class="metric-n" id="a-total-calls">—</div><div class="metric-l">Total calls logged</div></div>
+    <div class="metric"><div class="metric-n" id="a-total-tickets">—</div><div class="metric-l">Linear tickets</div></div>
+    <div class="metric"><div class="metric-n" id="a-avg-dur">—</div><div class="metric-l">Avg call duration</div></div>
+    <div class="metric"><div class="metric-n" id="a-skills">6</div><div class="metric-l">Skill files</div></div>
   </div>
-  <div class="card">
-    <div class="card-title">Issue breakdown from Linear tickets</div>
-    <div id="analytics-content" style="padding:16px;color:#aaa;text-align:center">Loading...</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="card" style="padding:14px">
+      <div class="card-title" style="margin-bottom:12px">Call volume — last 14 days</div>
+      <div id="call-chart" style="display:flex;align-items:flex-end;gap:3px;height:80px;padding-bottom:4px"></div>
+      <div id="call-chart-labels" style="display:flex;gap:3px;margin-top:4px"></div>
+    </div>
+    <div class="card" style="padding:14px">
+      <div class="card-title" style="margin-bottom:12px">Call outcomes</div>
+      <div id="status-chart" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="card" style="padding:14px">
+      <div class="card-title" style="margin-bottom:10px">Skill match frequency</div>
+      <div id="skill-chart" style="display:flex;flex-direction:column;gap:5px"></div>
+    </div>
+    <div class="card" style="padding:14px">
+      <div class="card-title" style="margin-bottom:10px">Issue categories from Linear</div>
+      <div id="analytics-content" style="color:#aaa;text-align:center;font-size:12px">Loading...</div>
+    </div>
   </div>
 </div>
 
