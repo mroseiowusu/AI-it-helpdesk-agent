@@ -547,6 +547,42 @@ async function loadHealthData() {
   }
 }
 
+async function hangupCall(sid) {
+  if(!confirm('Hang up this call?')) return;
+  try {
+    await fetch(`${BASE}/dashboard/hangup/${sid}`, {method:'POST'});
+    addLog(now(),'SYS',`Call ${sid.slice(0,8)}... hung up from dashboard`,'WARN');
+  } catch(e) { alert('Hangup failed: ' + e.message); }
+}
+
+async function loadHealthData() {
+  try {
+    const res = await fetch(`${BASE}/api/health`);
+    const data = await res.json();
+    const map = {
+      twilio: {dot:'ad-ok', val:'status'},
+      anthropic: {dot:'claude-dot', val:'latency_ms'},
+      linear: {dot:'linear-dot', val:'latency_ms'},
+      ssh: {dot:null, val:'machines'},
+      railway: {dot:null, val:'region'},
+      skills: {dot:null, val:'count'}
+    };
+    if(data.anthropic) {
+      const ok = data.anthropic.status==='ok';
+      document.getElementById('claude-dot').style.background = ok?'#3B6D11':'#E24B4A';
+      document.getElementById('claude-latency').textContent = ok ? data.anthropic.latency_ms+'ms' : 'Error';
+    }
+    if(data.linear) {
+      const ok = data.linear.status==='ok';
+      document.getElementById('linear-dot').style.background = ok?'#3B6D11':'#E24B4A';
+      document.getElementById('linear-count').textContent = ok ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
+    }
+    addLog(now(),'SYS','API health check completed','OK');
+  } catch(e) {
+    addLog(now(),'SYS','Health check failed: '+e.message,'ERR');
+  }
+}
+
 function connectWS() {
   const wsUrl = BASE.replace('https://','wss://').replace('http://','ws://') + '/ws/calls';
   const ws = new WebSocket(wsUrl);
@@ -596,6 +632,10 @@ function connectWS() {
       }
     } else if(msg.type==='operator_requested') {
       addLog(now(),'TWILIO','Caller pressed 0 — operator requested','WARN');
+    } else if(msg.type==='whisper_ack') {
+      addLog(now(),'SYS',`Whisper delivered to agent: "${msg.message}"`,'OK');
+      const tc = document.getElementById('transcript-'+msg.call_sid);
+      if(tc) tc.innerHTML += `<div class="t-line t-sys" style="background:#faeeda;color:#854F0B">Whisper delivered: ${msg.message}</div>`;
     } else if(msg.type==='whisper_ack') {
       addLog(now(),'SYS',`Whisper delivered to agent: "${msg.message}"`,'OK');
       const tc = document.getElementById('transcript-'+msg.call_sid);
