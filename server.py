@@ -20,6 +20,38 @@ TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
 init_db()
 seed_demo_data()
 
+# Call analytics logging
+import sqlite3 as _sqlite3
+from datetime import datetime as _datetime
+
+def _init_analytics_db():
+    conn = _sqlite3.connect('analytics.db')
+    conn.execute('''CREATE TABLE IF NOT EXISTS calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        call_sid TEXT,
+        employee_id TEXT,
+        skill_matched TEXT,
+        duration_seconds INTEGER,
+        status TEXT,
+        timestamp TEXT
+    )''')
+    conn.commit()
+    conn.close()
+
+def _log_call(call_sid, employee_id, skill_matched, duration_seconds, status):
+    try:
+        conn = _sqlite3.connect('analytics.db')
+        conn.execute(
+            'INSERT INTO calls (call_sid,employee_id,skill_matched,duration_seconds,status,timestamp) VALUES (?,?,?,?,?,?)',
+            (call_sid, employee_id, skill_matched, duration_seconds, status, _datetime.utcnow().isoformat())
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        log.error(f"Analytics log error: {e}")
+
+_init_analytics_db()
+
 watchers: list[WebSocket] = []
 
 async def broadcast(msg: dict):
@@ -169,6 +201,15 @@ async def respond_to_caller(request: Request):
         vr = VoiceResponse()
         vr.say(agent_reply, voice="Polly.Joanna")
         vr.hangup()
+        # Log completed call to analytics
+        _log_call(
+            call_sid=call_sid,
+            employee_id=session.get("employee_id", "unknown"),
+            skill_matched=session.get("skill_matched", "none"),
+            duration_seconds=len(history) * 30,
+            status="resolved"
+        )
+        _call_stats["total"] += 1
         sessions.pop(call_sid, None)
         await broadcast({"type": "call_end", "call_sid": call_sid})
         return Response(content=str(vr), media_type="application/xml")
@@ -300,6 +341,48 @@ async def health_check():
                          "files": [f.name for f in skill_files]}
 
     return results
+
+@app.get("/api/analytics")
+async def get_analytics():
+    import sqlite3 as sq
+    from datetime import datetime, timedelta
+    try:
+        conn = sq.connect('analytics.db')
+        conn.row_factory = sq.Row
+        
+        # Last 14 days call volume
+        days = []
+        for i in range(13, -1, -1):
+            day = (datetime.utcnow() - timedelta(days=i)).strftime('%Y-%m-%d')
+            row = conn.execute(
+                "SELECT COUNT(*) as cnt FROM calls WHERE timestamp LIKE ?", (day+'%',)
+            ).fetchone()
+            days.append({"date": day, "calls": row["cnt"]})
+        
+        # Skill breakdown
+        skills = conn.execute(
+            "SELECT skill_matched, COUNT(*) as cnt FROM calls GROUP BY skill_matched ORDER BY cnt DESC"
+        ).fetchall()
+        
+        # Status breakdown
+        statuses = conn.execute(
+            "SELECT status, COUNT(*) as cnt FROM calls GROUP BY status"
+        ).fetchall()
+        
+        # Total stats
+        total = conn.execute("SELECT COUNT(*) as cnt FROM calls").fetchone()
+        avg_dur = conn.execute("SELECT AVG(duration_seconds) as avg FROM calls").fetchone()
+        
+        conn.close()
+        return {
+            "daily": days,
+            "skills": [dict(r) for r in skills],
+            "statuses": [dict(r) for r in statuses],
+            "total_calls": total["cnt"],
+            "avg_duration_seconds": round(avg_dur["avg"] or 0)
+        }
+    except Exception as e:
+        return {"error": str(e), "daily": [], "skills": [], "statuses": [], "total_calls": 0}
 
 @app.get("/api/sessions")
 async def get_sessions():
