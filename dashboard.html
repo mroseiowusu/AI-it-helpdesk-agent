@@ -511,6 +511,56 @@ async function sendWhisper(sid) {
 
 const empNames = {EMP001:'Alice Johnson',EMP002:'Bob Smith',EMP003:'Carol White',EMP004:'Dave Brown'};
 
+async function loadAdminData() {
+  try {
+    const data = await (await fetch(`${BASE}/api/health`)).json();
+    const avatarColors = ['ea-blue','ea-green','ea-amber','ea-purple','ea-blue','ea-green'];
+    const empNames = {
+      EMP001:['Alice Johnson','Engineering · Windows'],
+      EMP002:['Bob Smith','Marketing · Linux'],
+      EMP003:['Carol White','Finance · Windows'],
+      EMP004:['Dave Brown','IT · Linux']
+    };
+    if(data.ssh) {
+      const empHtml = Object.entries(empNames).map(([id,[name,sub]],i) => `
+        <div class="emp-row">
+          <div class="emp-avatar ${avatarColors[i]}">${name.split(' ').map(n=>n[0]).join('')}</div>
+          <div class="emp-info"><div class="emp-name">${name}</div><div class="emp-sub">${id} · ${sub}</div></div>
+          <span class="badge b-warn">SSH demo</span>
+        </div>`).join('');
+      document.getElementById('emp-list').innerHTML = empHtml;
+    }
+    if(data.skills) {
+      const skillHtml = data.skills.files.map(f => `
+        <div class="skill-r">
+          <span class="skill-n">${f}</span>
+          <div class="skill-track"><div class="skill-fill" style="width:70%"></div></div>
+          <span class="skill-c v-active" style="font-size:9px;padding:1px 5px;border-radius:10px">Live</span>
+        </div>`).join('');
+      document.getElementById('skill-list').innerHTML = skillHtml;
+    }
+    if(data.twilio) {
+      const el = document.getElementById('sys-twilio');
+      if(el) el.textContent = data.twilio.status==='ok' ? '✓ '+data.twilio.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.twilio.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.anthropic) {
+      const el = document.getElementById('sys-anthropic');
+      if(el) el.textContent = data.anthropic.status==='ok' ? '✓ '+data.anthropic.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.anthropic.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.linear) {
+      const el = document.getElementById('sys-linear');
+      if(el) el.textContent = data.linear.status==='ok' ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.linear.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    const callsEl = document.getElementById('sys-calls');
+    if(callsEl) callsEl.textContent = Object.keys(activeCalls).length;
+  } catch(e) {
+    console.error('Admin data error:', e);
+  }
+}
+
 async function hangupCall(sid) {
   if(!confirm('Hang up this call?')) return;
   try {
@@ -544,6 +594,56 @@ async function loadHealthData() {
     addLog(now(),'SYS','API health check completed','OK');
   } catch(e) {
     addLog(now(),'SYS','Health check failed: '+e.message,'ERR');
+  }
+}
+
+async function loadAdminData() {
+  try {
+    const data = await (await fetch(`${BASE}/api/health`)).json();
+    const avatarColors = ['ea-blue','ea-green','ea-amber','ea-purple','ea-blue','ea-green'];
+    const empNames = {
+      EMP001:['Alice Johnson','Engineering · Windows'],
+      EMP002:['Bob Smith','Marketing · Linux'],
+      EMP003:['Carol White','Finance · Windows'],
+      EMP004:['Dave Brown','IT · Linux']
+    };
+    if(data.ssh) {
+      const empHtml = Object.entries(empNames).map(([id,[name,sub]],i) => `
+        <div class="emp-row">
+          <div class="emp-avatar ${avatarColors[i]}">${name.split(' ').map(n=>n[0]).join('')}</div>
+          <div class="emp-info"><div class="emp-name">${name}</div><div class="emp-sub">${id} · ${sub}</div></div>
+          <span class="badge b-warn">SSH demo</span>
+        </div>`).join('');
+      document.getElementById('emp-list').innerHTML = empHtml;
+    }
+    if(data.skills) {
+      const skillHtml = data.skills.files.map(f => `
+        <div class="skill-r">
+          <span class="skill-n">${f}</span>
+          <div class="skill-track"><div class="skill-fill" style="width:70%"></div></div>
+          <span class="skill-c v-active" style="font-size:9px;padding:1px 5px;border-radius:10px">Live</span>
+        </div>`).join('');
+      document.getElementById('skill-list').innerHTML = skillHtml;
+    }
+    if(data.twilio) {
+      const el = document.getElementById('sys-twilio');
+      if(el) el.textContent = data.twilio.status==='ok' ? '✓ '+data.twilio.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.twilio.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.anthropic) {
+      const el = document.getElementById('sys-anthropic');
+      if(el) el.textContent = data.anthropic.status==='ok' ? '✓ '+data.anthropic.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.anthropic.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.linear) {
+      const el = document.getElementById('sys-linear');
+      if(el) el.textContent = data.linear.status==='ok' ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.linear.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    const callsEl = document.getElementById('sys-calls');
+    if(callsEl) callsEl.textContent = Object.keys(activeCalls).length;
+  } catch(e) {
+    console.error('Admin data error:', e);
   }
 }
 
@@ -660,9 +760,11 @@ function connectWS() {
 
 loadLinearTickets();
 loadHealthData();
+loadAdminData();
 connectWS();
 setInterval(loadLinearTickets, 60000);
 setInterval(loadHealthData, 30000);
+setInterval(loadAdminData, 30000);
 </script>
 </body>
 </html>
