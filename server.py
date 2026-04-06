@@ -105,10 +105,10 @@ async def inbound_call(request: Request):
     form = await request.form()
     call_sid = form.get("CallSid", "unknown")
     log.info(f"Inbound call: {call_sid}")
-    sessions[call_sid] = {
+    _session_set(call_sid, {
         "history": [], "employee_id": None, "ssh_context": None,
         "awaiting_emp_id": True, "operator": False
-    }
+    })
     _call_stats["total"] += 1
     _call_stats["today"] = _call_stats.get("today", 0) + 1
     await broadcast({"type": "call_start", "call_sid": call_sid})
@@ -142,10 +142,10 @@ async def respond_to_caller(request: Request):
             log.error(f"Ticket logging failed: {e}")
         return Response(content=_operator_twiml(), media_type="application/xml")
 
-    session = sessions.get(call_sid, {
+    session = _session_get(call_sid) or {
         "history": [], "employee_id": None, "ssh_context": None,
         "awaiting_emp_id": False, "operator": False
-    })
+    }
 
     if session.get("operator"):
         return Response(content=_operator_twiml(), media_type="application/xml")
@@ -171,10 +171,10 @@ async def respond_to_caller(request: Request):
                 log.error(f"SSH failed: {e}")
                 session["ssh_context"] = None
                 ack = "Thanks, I found your record. Please describe your issue."
-            sessions[call_sid] = session
+            _session_set(call_sid, session)
             return Response(content=_say(ack, f"{BASE_URL}/voice/respond"), media_type="application/xml")
         else:
-            sessions[call_sid] = session
+            _session_set(call_sid, session)
             retry = "I couldn't find that employee I D. Could you try again?"
             return Response(content=_say(retry, f"{BASE_URL}/voice/respond"), media_type="application/xml")
 
@@ -193,7 +193,7 @@ async def respond_to_caller(request: Request):
     log.info(f"[{call_sid}] Agent: '{agent_reply}'")
     history.append({"role": "assistant", "content": agent_reply})
     session["history"] = history
-    sessions[call_sid] = session
+    _session_set(call_sid, session)
 
     await broadcast({"type": "transcript", "call_sid": call_sid, "role": "agent", "text": agent_reply})
 
@@ -210,7 +210,7 @@ async def respond_to_caller(request: Request):
             status="resolved"
         )
         _call_stats["total"] += 1
-        sessions.pop(call_sid, None)
+        _session_del(call_sid)
         await broadcast({"type": "call_end", "call_sid": call_sid})
         return Response(content=str(vr), media_type="application/xml")
 
@@ -223,7 +223,7 @@ async def call_status(request: Request):
     status = form.get("CallStatus", "")
     log.info(f"Call status: {call_sid} → {status}")
     if status in ("completed", "failed", "busy", "no-answer", "canceled"):
-        sessions.pop(call_sid, None)
+        _session_del(call_sid)
         await broadcast({"type": "call_end", "call_sid": call_sid})
     return Response(content="", status_code=204)
 
@@ -238,13 +238,13 @@ async def hangup(call_sid: str):
         except Exception as e:
             log.error(f"Hangup failed: {e}")
             return {"status": "error", "message": str(e)}
-    sessions.pop(call_sid, None)
+    _session_del(call_sid)
     await broadcast({"type": "call_end", "call_sid": call_sid})
     return {"status": "ok"}
 
 @app.post("/dashboard/takeover/{call_sid}")
 async def takeover(call_sid: str):
-    if call_sid in sessions:
+    if _session_get(call_sid):
         sessions[call_sid]["operator"] = True
         await broadcast({"type": "takeover", "call_sid": call_sid})
         client = _twilio_client()
@@ -260,7 +260,7 @@ async def takeover(call_sid: str):
 @app.post("/dashboard/whisper/{call_sid}")
 async def whisper(call_sid: str, request: Request):
     body = await request.json()
-    if call_sid in sessions:
+    if _session_get(call_sid):
         sessions[call_sid]["whisper"] = body.get("message", "")
         log.info(f"Whisper queued for {call_sid}: {body.get('message')}")
     return {"status": "ok"}
@@ -403,7 +403,7 @@ async def websocket_calls(websocket: WebSocket):
     active = [
         {"call_sid": sid, "emp_id": s.get("employee_id"),
          "history_len": len(s.get("history", []))}
-        for sid, s in sessions.items()
+        for sid, s in _session_list()
     ]
     await websocket.send_text(json.dumps({"type": "init", "calls": active}))
     try:
@@ -415,7 +415,7 @@ async def websocket_calls(websocket: WebSocket):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "sessions": len(sessions)}
+    return {"status": "ok", "sessions": len(_session_list())}
 
 @app.get("/dashboard", response_class=HTMLResponse)
 @app.get("/dashboard.html", response_class=HTMLResponse)
@@ -452,7 +452,7 @@ async def get_stats():
     return {
         "calls_total": _call_stats["total"],
         "calls_today": _call_stats["today"],
-        "active_calls": len(sessions),
+        "active_calls": len(_session_list()),
         "date": today
     }
 
