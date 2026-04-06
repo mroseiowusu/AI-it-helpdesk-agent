@@ -338,8 +338,14 @@ async def health():
 @app.get("/dashboard.html", response_class=HTMLResponse)
 async def dashboard():
     from pathlib import Path
+    from fastapi.responses import HTMLResponse as _HR
     f = Path(__file__).parent / "dashboard.html"
-    return f.read_text(encoding="utf-8")
+    html = f.read_text(encoding="utf-8")
+    return _HR(content=html, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    })
 
 @app.get("/voice/opt-in-consent-collector", response_class=HTMLResponse)
 async def opt_in_consent():
