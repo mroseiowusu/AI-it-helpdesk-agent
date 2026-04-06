@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IT Helpdesk — Command Centre</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; color: #1a1a1a; font-size: 13px; }
+  .topbar { background: white; border-bottom: 0.5px solid #e0e0e0; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .logo { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #3B6D11; }
+  .live-dot.pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .phone-pill { background: #f0f0f0; border-radius: 20px; padding: 4px 12px; font-size: 12px; font-family: monospace; }
+  .tabs { background: white; border-bottom: 0.5px solid #e0e0e0; display: flex; padding: 0 20px; }
+  .tab { padding: 10px 16px; font-size: 12px; color: #666; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+  .tab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; font-weight: 500; }
+  .content { padding: 20px; display: none; }
+  .content.active { display: block; }
+  .grid4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 16px; }
+  .metric { background: white; border-radius: 10px; padding: 14px; border: 0.5px solid #e8e8e8; }
+  .metric-n { font-size: 28px; font-weight: 600; }
+  .metric-l { font-size: 11px; color: #888; margin-top: 3px; }
+  .card { background: white; border-radius: 10px; border: 0.5px solid #e8e8e8; overflow: hidden; }
+  .card-title { font-size: 11px; font-weight: 600; color: #666; padding: 12px 14px; border-bottom: 0.5px solid #f0f0f0; }
+  .ticket-row { display: grid; grid-template-columns: 10px 1fr 70px 80px 80px; gap: 10px; padding: 9px 14px; border-bottom: 0.5px solid #f5f5f5; align-items: center; font-size: 12px; }
+  .ticket-row:last-child { border-bottom: none; }
+  .ticket-head { display: grid; grid-template-columns: 10px 1fr 70px 80px 80px; gap: 10px; padding: 8px 14px; background: #f9f9f9; font-size: 10px; font-weight: 600; color: #888; border-bottom: 0.5px solid #e8e8e8; }
+  .pri { width: 8px; height: 8px; border-radius: 50%; }
+  .p1{background:#E24B4A}.p2{background:#BA7517}.p3{background:#378ADD}.p4{background:#639922}
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; display: inline-block; }
+  .b-esc{background:#fce8e8;color:#A32D2D}.b-res{background:#eaf3de;color:#3B6D11}
+  .b-open{background:#e6f1fb;color:#185FA5}.b-warn{background:#faeeda;color:#854F0B}
+
+  .live-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; }
+  .call-list { display: flex; flex-direction: column; gap: 8px; }
+  .call-card { background: white; border: 0.5px solid #e8e8e8; border-radius: 10px; overflow: hidden; }
+  .call-card.highlighted { border: 2px solid #378ADD; }
+  .call-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+  .call-pulse { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; animation: pulse 1.5s infinite; }
+  .cp-green{background:#3B6D11}.cp-amber{background:#BA7517}
+  .call-info { flex: 1; }
+  .call-name { font-size: 13px; font-weight: 500; }
+  .call-sub { font-size: 11px; color: #888; margin-top: 1px; }
+  .call-duration { font-family: monospace; font-size: 12px; color: #666; }
+  .call-btns { display: flex; gap: 6px; padding: 0 14px 12px; }
+  .btn { padding: 5px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; border: 0.5px solid; }
+  .btn-monitor { background: #f0f0f0; border-color: #d0d0d0; color: #444; }
+  .btn-whisper { background: #faeeda; border-color: #EF9F27; color: #854F0B; }
+  .btn-takeover { background: #fce8e8; border-color: #E24B4A; color: #A32D2D; font-weight: 500; }
+  .detail-panel { display: flex; flex-direction: column; gap: 10px; }
+  .detail-card { background: white; border-radius: 10px; border: 0.5px solid #e8e8e8; padding: 14px; }
+  .detail-title { font-size: 11px; font-weight: 600; color: #888; margin-bottom: 10px; }
+  .detail-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
+  .detail-key { color: #888; }
+  .detail-val { color: #1a1a1a; font-family: monospace; font-size: 11px; }
+  .transcript { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+  .t-line { padding: 6px 8px; border-radius: 6px; font-size: 11px; line-height: 1.4; }
+  .t-caller { background: #e6f1fb; color: #042C53; }
+  .t-agent { background: #eaf3de; color: #173404; }
+  .t-sys { background: #faeeda; color: #412402; font-style: italic; }
+  .takeover-actions { display: flex; flex-direction: column; gap: 6px; }
+  .big-btn { width: 100%; padding: 11px; border-radius: 8px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; }
+  .big-red { background: #fce8e8; color: #A32D2D; border: 1px solid #E24B4A; }
+  .big-amber { background: #faeeda; color: #854F0B; border: 1px solid #EF9F27; }
+  .whisper-box { display: flex; gap: 6px; margin-top: 4px; }
+  .whisper-input { flex: 1; padding: 7px 10px; border: 0.5px solid #e0e0e0; border-radius: 6px; font-size: 11px; }
+  .whisper-send { padding: 7px 12px; background: #1a1a1a; color: white; border: none; border-radius: 6px; font-size: 11px; cursor: pointer; }
+  .no-calls { text-align: center; padding: 50px 20px; color: #aaa; }
+  .no-calls-icon { font-size: 32px; margin-bottom: 8px; }
+
+  .api-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+  .api-card { background: white; border-radius: 10px; border: 0.5px solid #e8e8e8; padding: 14px; }
+  .api-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .api-name { font-size: 13px; font-weight: 500; }
+  .api-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .ad-ok{background:#3B6D11}.ad-warn{background:#BA7517}.ad-err{background:#E24B4A}
+  .api-row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; }
+  .api-key { color: #888; }
+  .api-val { font-family: monospace; color: #1a1a1a; }
+  .latency-bar { height: 3px; background: #f0f0f0; border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .latency-fill { height: 100%; border-radius: 2px; }
+  .uptime-row { display: flex; gap: 2px; margin-top: 6px; }
+  .utick { height: 10px; flex: 1; border-radius: 1px; }
+
+  .log-wrap { font-family: monospace; }
+  .log-filters { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .lf { font-size: 10px; padding: 3px 10px; border-radius: 20px; border: 0.5px solid #d0d0d0; background: #f5f5f5; cursor: pointer; color: #666; }
+  .lf.on { background: white; border-color: #1a1a1a; color: #1a1a1a; font-weight: 500; }
+  .log-table { background: white; border-radius: 10px; border: 0.5px solid #e8e8e8; overflow: hidden; }
+  .log-row { display: flex; gap: 8px; padding: 6px 12px; border-bottom: 0.5px solid #f5f5f5; font-size: 11px; }
+  .log-row:last-child { border-bottom: none; }
+  .log-time { color: #aaa; width: 60px; flex-shrink: 0; }
+  .log-src { width: 65px; flex-shrink: 0; font-weight: 500; }
+  .ls-twilio{color:#E85D24}.ls-claude{color:#7F77DD}.ls-linear{color:#378ADD}
+  .ls-ssh{color:#3B6D11}.ls-skill{color:#BA7517}.ls-sys{color:#aaa}
+  .log-msg { flex: 1; color: #333; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .log-level { flex-shrink: 0; font-size: 10px; }
+  .ll-info{color:#378ADD}.ll-ok{color:#3B6D11}.ll-warn{color:#BA7517}.ll-err{color:#A32D2D}
+
+  .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .admin-card { background: white; border-radius: 10px; border: 0.5px solid #e8e8e8; padding: 14px; }
+  .admin-title { font-size: 12px; font-weight: 600; color: #444; margin-bottom: 10px; }
+  .emp-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 0.5px solid #f5f5f5; }
+  .emp-row:last-child { border-bottom: none; }
+  .emp-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+  .ea-blue{background:#e6f1fb;color:#185FA5}.ea-green{background:#eaf3de;color:#3B6D11}
+  .ea-amber{background:#faeeda;color:#854F0B}.ea-purple{background:#eeedfe;color:#534AB7}
+  .emp-info { flex: 1; }
+  .emp-name { font-size: 12px; font-weight: 500; }
+  .emp-sub { font-size: 10px; color: #888; margin-top: 1px; }
+  .skill-r { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .skill-n { font-size: 11px; width: 110px; color: #333; }
+  .skill-track { flex: 1; height: 5px; background: #f0f0f0; border-radius: 3px; overflow: hidden; }
+  .skill-fill { height: 100%; border-radius: 3px; background: #378ADD; }
+  .skill-c { font-size: 10px; color: #888; width: 18px; text-align: right; }
+  .voice-r { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 0.5px solid #f5f5f5; font-size: 12px; }
+  .voice-r:last-child { border-bottom: none; }
+  .v-active{background:#eaf3de;color:#3B6D11;font-size:10px;padding:2px 8px;border-radius:20px}
+  .v-inactive{background:#f0f0f0;color:#888;font-size:10px;padding:2px 8px;border-radius:20px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">
+    <div class="live-dot pulse" id="main-dot"></div>
+    IT Helpdesk Agent — Command Centre
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span id="active-count" style="font-size:12px;color:#888">0 active calls</span>
+    <span class="phone-pill">+1 (888) 483-6907</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('ops',this)">Operations</div>
+  <div class="tab" onclick="showTab('live',this)">
+    Live calls <span id="call-badge" style="display:none;background:#E24B4A;color:white;border-radius:20px;padding:1px 6px;font-size:10px;margin-left:4px">0</span>
+  </div>
+  <div class="tab" onclick="showTab('analytics',this)">Analytics</div>
+  <div class="tab" onclick="showTab('api',this)">API health</div>
+  <div class="tab" onclick="showTab('logs',this)">Live logs</div>
+  <div class="tab" onclick="showTab('admin',this)">Admin</div>
+</div>
+
+<div id="ops" class="content active">
+  <div class="grid4">
+    <div class="metric"><div class="metric-n" id="m-total">—</div><div class="metric-l">Total tickets</div></div>
+    <div class="metric"><div class="metric-n" style="color:#A32D2D" id="m-urgent">—</div><div class="metric-l">Urgent / escalated</div></div>
+    <div class="metric"><div class="metric-n" style="color:#3B6D11" id="m-resolved">—</div><div class="metric-l">Resolved</div></div>
+    <div class="metric"><div class="metric-n" id="m-rate">—</div><div class="metric-l">Resolution rate</div></div>
+  </div>
+  <div class="card">
+    <div class="ticket-head"><div></div><div>Issue</div><div>Employee</div><div>Priority</div><div>Status</div></div>
+    <div id="ticket-list"><div style="padding:20px;text-align:center;color:#aaa">Loading tickets from Linear...</div></div>
+  </div>
+</div>
+
+<div id="live" class="content">
+  <div class="live-grid">
+    <div>
+      <div class="call-list" id="call-list">
+        <div class="no-calls">
+          <div class="no-calls-icon">📞</div>
+          <div>No active calls right now</div>
+          <div style="font-size:11px;margin-top:4px">Calls will appear here in real time</div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-panel" id="detail-panel">
+      <div class="detail-card" style="color:#aaa;text-align:center;padding:30px">
+        Select a call to see details
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="analytics" class="content">
+  <div class="grid4" style="margin-bottom:16px">
+    <div class="metric"><div class="metric-n" id="a-total">—</div><div class="metric-l">All time tickets</div></div>
+    <div class="metric"><div class="metric-n" id="a-rate" style="color:#3B6D11">—</div><div class="metric-l">Resolution rate</div></div>
+    <div class="metric"><div class="metric-n" id="a-urgent" style="color:#A32D2D">—</div><div class="metric-l">Escalations</div></div>
+    <div class="metric"><div class="metric-n" id="a-skills">6</div><div class="metric-l">Skill files loaded</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Issue breakdown from Linear tickets</div>
+    <div id="analytics-content" style="padding:16px;color:#aaa;text-align:center">Loading...</div>
+  </div>
+</div>
+
+<div id="api" class="content">
+  <div class="api-grid">
+    <div class="api-card">
+      <div class="api-head"><span class="api-name">Twilio</span><div class="api-dot ad-ok"></div></div>
+      <div class="api-row"><span class="api-key">Number</span><span class="api-val">+18884836907</span></div>
+      <div class="api-row"><span class="api-key">Webhook</span><span class="api-val" style="color:#3B6D11">Connected</span></div>
+      <div class="api-row"><span class="api-key">Status</span><span class="api-val" style="color:#3B6D11">Operational</span></div>
+      <div class="latency-bar"><div class="latency-fill" style="width:15%;background:#3B6D11"></div></div>
+      <div class="uptime-row" id="uptime-twilio"></div>
+    </div>
+    <div class="api-card">
+      <div class="api-head"><span class="api-name">Anthropic Claude</span><div class="api-dot" id="claude-dot" style="background:#3B6D11"></div></div>
+      <div class="api-row"><span class="api-key">Model</span><span class="api-val">claude-sonnet-4</span></div>
+      <div class="api-row"><span class="api-key">Status</span><span class="api-val" style="color:#3B6D11">Operational</span></div>
+      <div class="api-row"><span class="api-key">Latency</span><span class="api-val" id="claude-latency">—</span></div>
+      <div class="latency-bar"><div class="latency-fill" style="width:50%;background:#BA7517"></div></div>
+      <div class="uptime-row" id="uptime-claude"></div>
+    </div>
+    <div class="api-card">
+      <div class="api-head"><span class="api-name">Linear</span><div class="api-dot" id="linear-dot" style="background:#3B6D11"></div></div>
+      <div class="api-row"><span class="api-key">Team</span><span class="api-val">AI Helpdesk</span></div>
+      <div class="api-row"><span class="api-key">Tickets logged</span><span class="api-val" id="linear-count">—</span></div>
+      <div class="api-row"><span class="api-key">Status</span><span class="api-val" style="color:#3B6D11">Operational</span></div>
+      <div class="latency-bar"><div class="latency-fill" style="width:20%;background:#3B6D11"></div></div>
+      <div class="uptime-row" id="uptime-linear"></div>
+    </div>
+    <div class="api-card">
+      <div class="api-head"><span class="api-name">SSH / Machine Registry</span><div class="api-dot ad-warn"></div></div>
+      <div class="api-row"><span class="api-key">Registered</span><span class="api-val">4 machines</span></div>
+      <div class="api-row"><span class="api-key">Reachable</span><span class="api-val" style="color:#A32D2D">0 / 4 (demo IPs)</span></div>
+      <div class="api-row"><span class="api-key">Status</span><span class="api-val" style="color:#BA7517">Degraded</span></div>
+      <div class="latency-bar"><div class="latency-fill" style="width:100%;background:#E24B4A"></div></div>
+      <div class="uptime-row" id="uptime-ssh"></div>
+    </div>
+    <div class="api-card">
+      <div class="api-head"><span class="api-name">Railway</span><div class="api-dot ad-ok"></div></div>
+      <div class="api-row"><span class="api-key">Region</span><span class="api-val">us-west2</span></div>
+      <div class="api-row"><span class="api-key">Status</span><span class="api-val" style="color:#3B6D11">Online</span></div>
+      <div class="api-row"><span class="api-key">Replicas</span><span class="api-val">1</span></div>
+      <div class="latency-bar"><div class="latency-fill" style="width:5%;background:#3B6D11"></div></div>
+      <div class="uptime-row" id="uptime-railway"></div>
+    </div>
+    <div class="api-card">
+      <div class="api-head"><span class="api-name">Skill files</span><div class="api-dot ad-ok"></div></div>
+      <div class="api-row"><span class="api-key">Files</span><span class="api-val">6 runbooks</span></div>
+      <div class="api-row"><span class="api-key">VPN, WiFi, Outlook</span><span class="api-val" style="color:#3B6D11">Loaded</span></div>
+      <div class="api-row"><span class="api-key">Printer, Password, Slow</span><span class="api-val" style="color:#3B6D11">Loaded</span></div>
+      <div class="latency-bar"><div class="latency-fill" style="width:2%;background:#3B6D11"></div></div>
+      <div class="uptime-row" id="uptime-skills"></div>
+    </div>
+  </div>
+</div>
+
+<div id="logs" class="content">
+  <div class="log-filters">
+    <span class="lf on" onclick="filterLog('all',this)">All</span>
+    <span class="lf ls-twilio" onclick="filterLog('TWILIO',this)" style="border-color:currentColor">Twilio</span>
+    <span class="lf ls-claude" onclick="filterLog('CLAUDE',this)" style="border-color:currentColor">Claude</span>
+    <span class="lf ls-linear" onclick="filterLog('LINEAR',this)" style="border-color:currentColor">Linear</span>
+    <span class="lf ls-ssh" onclick="filterLog('SSH',this)" style="border-color:currentColor">SSH</span>
+    <span class="lf ls-skill" onclick="filterLog('SKILL',this)" style="border-color:currentColor">Skills</span>
+    <span class="lf ll-err" onclick="filterLog('ERR',this)" style="border-color:currentColor">Errors</span>
+  </div>
+  <div class="log-table" id="log-table">
+    <div style="padding:20px;text-align:center;color:#aaa;font-size:12px">Logs will appear here in real time during calls</div>
+  </div>
+</div>
+
+<div id="admin" class="content">
+  <style>
+  .sk-ed{display:none;margin-top:10px;border:0.5px solid #e8e8e8;border-radius:8px;overflow:hidden}
+  .sk-ed.open{display:block}
+  .sk-tb{background:#f9f9f9;padding:6px 10px;display:flex;gap:6px;align-items:center;border-bottom:0.5px solid #f0f0f0}
+  .sk-title{font-size:11px;font-weight:600;color:#444;flex:1}
+  .sk-ta{width:100%;min-height:180px;padding:10px;font-family:monospace;font-size:11px;border:none;outline:none;resize:vertical;line-height:1.5;box-sizing:border-box}
+  .sk-btn{font-size:10px;padding:3px 10px;border-radius:5px;border:0.5px solid;cursor:pointer}
+  .sk-save{background:#eaf3de;color:#3B6D11;border-color:#97C459}
+  .sk-del{background:#fce8e8;color:#A32D2D;border-color:#E24B4A}
+  .sk-cancel{background:#f5f5f5;color:#666;border-color:#ddd}
+  .upzone{border:1.5px dashed #ddd;border-radius:8px;padding:16px;text-align:center;font-size:11px;color:#aaa;cursor:pointer;margin-top:8px}
+  .upzone:hover{border-color:#378ADD;color:#378ADD}
+  .vopt{padding:7px 10px;border:0.5px solid #e8e8e8;border-radius:8px;cursor:pointer;font-size:11px}
+  .vopt.sel{border-color:#378ADD;background:#e6f1fb;color:#185FA5;font-weight:500}
+  .vopt:hover:not(.sel){background:#f9f9f9}
+  .vprov{font-size:10px;color:#888;margin-top:1px}
+</style>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <div class="admin-card" style="grid-column:1/-1">
+    <div class="admin-title">Call statistics</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <div style="background:#f9f9f9;border-radius:8px;padding:12px;text-align:center"><div style="font-size:26px;font-weight:600" id="stat-total">—</div><div style="font-size:10px;color:#888;margin-top:2px">Total calls (session)</div></div>
+      <div style="background:#f9f9f9;border-radius:8px;padding:12px;text-align:center"><div style="font-size:26px;font-weight:600" id="stat-today">—</div><div style="font-size:10px;color:#888;margin-top:2px">Calls today</div></div>
+    </div>
+  </div>
+  <div class="admin-card">
+    <div class="admin-title" style="display:flex;align-items:center;justify-content:space-between">Skill files <button class="sk-btn sk-save" onclick="showNewSkill()">+ New</button></div>
+    <div id="skill-list" style="margin-top:8px"><div style="color:#aaa;font-size:12px">Loading...</div></div>
+    <div class="upzone" onclick="document.getElementById('sk-upload').click()">Drop .md file or click to upload<input type="file" id="sk-upload" accept=".md" style="display:none" onchange="uploadSkill(this)"></div>
+    <div class="sk-ed" id="new-sk-ed">
+      <div class="sk-tb"><span class="sk-title">New skill</span><input id="new-sk-name" placeholder="filename.md" style="font-size:11px;padding:2px 6px;border:0.5px solid #ddd;border-radius:4px;width:110px"><button class="sk-btn sk-save" onclick="saveNewSkill()">Save</button><button class="sk-btn sk-cancel" onclick="hideNewSkill()">Cancel</button></div>
+      <textarea class="sk-ta" id="new-sk-content" placeholder="# Skill: Name&#10;&#10;## Triggers&#10;keyword1, keyword2&#10;&#10;## Steps&#10;1. Ask..."></textarea>
+    </div>
+    <div class="sk-ed" id="edit-sk-ed">
+      <div class="sk-tb"><span class="sk-title" id="edit-sk-title">Editing</span><button class="sk-btn sk-save" onclick="saveEditSkill()">Save</button><button class="sk-btn sk-del" onclick="deleteSkill()">Delete</button><button class="sk-btn sk-cancel" onclick="hideEditSkill()">Cancel</button></div>
+      <textarea class="sk-ta" id="edit-sk-content"></textarea>
+    </div>
+  </div>
+  <div class="admin-card">
+    <div class="admin-title">Voice provider</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px" id="vopt-grid">
+      <div class="vopt sel" data-provider="polly" data-voice="Polly.Joanna" onclick="selectVoice(this)">Joanna (US female)<div class="vprov">Amazon Polly</div></div>
+      <div class="vopt" data-provider="polly" data-voice="Polly.Matthew" onclick="selectVoice(this)">Matthew (US male)<div class="vprov">Amazon Polly</div></div>
+      <div class="vopt" data-provider="polly" data-voice="Polly.Amy" onclick="selectVoice(this)">Amy (UK female)<div class="vprov">Amazon Polly</div></div>
+      <div class="vopt" data-provider="polly" data-voice="Polly.Brian" onclick="selectVoice(this)">Brian (UK male)<div class="vprov">Amazon Polly</div></div>
+      <div class="vopt" data-provider="elevenlabs" data-voice="rachel" onclick="selectVoice(this)">Rachel<div class="vprov">ElevenLabs</div></div>
+      <div class="vopt" data-provider="openai" data-voice="alloy" onclick="selectVoice(this)">Alloy<div class="vprov">OpenAI TTS</div></div>
+      <div class="vopt" data-provider="openai" data-voice="nova" onclick="selectVoice(this)">Nova<div class="vprov">OpenAI TTS</div></div>
+      <div class="vopt" data-provider="deepgram" data-voice="aura-asteria" onclick="selectVoice(this)">Aura<div class="vprov">Deepgram</div></div>
+      <div class="vopt" data-provider="cartesia" data-voice="sonic" onclick="selectVoice(this)">Sonic<div class="vprov">Cartesia</div></div>
+      <div class="vopt" data-provider="google" data-voice="en-US-Neural2-F" onclick="selectVoice(this)">Neural2-F<div class="vprov">Google Cloud</div></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <input id="voice-api-key" placeholder="API key (not needed for Polly)" style="flex:1;padding:6px 10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:11px;font-family:monospace">
+      <button class="sk-btn sk-save" onclick="applyVoice()">Apply</button>
+    </div>
+    <div id="voice-status" style="font-size:11px;color:#888;margin-top:5px"></div>
+  </div>
+  <div class="admin-card">
+    <div class="admin-title">System info</div>
+    <div class="voice-r"><span>Server</span><span style="font-size:11px;font-family:monospace">Railway us-west2</span></div>
+    <div class="voice-r"><span>Twilio</span><span id="sys-twilio" style="font-size:11px;font-family:monospace;color:#888">—</span></div>
+    <div class="voice-r"><span>Anthropic</span><span id="sys-anthropic" style="font-size:11px;font-family:monospace;color:#888">—</span></div>
+    <div class="voice-r"><span>Linear</span><span id="sys-linear" style="font-size:11px;font-family:monospace;color:#888">—</span></div>
+    <div class="voice-r"><span>WebSocket</span><span id="ws-status" style="font-size:11px;font-family:monospace;color:#888">Connecting...</span></div>
+    <div class="voice-r"><span>Linear tickets</span><span id="sys-tickets" style="font-size:11px;font-family:monospace">—</span></div>
+    <div class="voice-r"><span>Active calls</span><span id="sys-calls" style="font-size:11px;font-family:monospace">0</span></div>
+  </div>
+  <div class="admin-card">
+    <div class="admin-title">ITSM backend</div>
+    <div class="voice-r"><span>Linear</span><span class="v-active">Active</span></div>
+    <div class="voice-r"><span>Jira</span><span class="v-inactive">Inactive</span></div>
+    <div class="voice-r"><span>ServiceNow</span><span class="v-inactive">Inactive</span></div>
+    <div class="admin-title" style="margin-top:12px">Registered employees</div>
+    <div id="emp-list" style="margin-top:6px"><div style="color:#aaa;font-size:12px">Loading...</div></div>
+  </div>
+</div>
+</div>
+
+<script>
+const BASE = 'https://web-production-789692.up.railway.app';
+const LINEAR_KEY = 'YOUR_LINEAR_API_KEY_HERE';
+const TEAM_ID = '5a834841-6f92-435f-bad9-4221bf3385ea';
+let activeCalls = {};
+let selectedCall = null;
+let logFilter = 'all';
+let logs = [];
+
+function showTab(id, el) {
+  document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+}
+
+function fmt(n) { return n !== undefined ? n : '—'; }
+
+async function loadLinearTickets() {
+  try {
+    const res = await fetch(`${BASE}/api/tickets`);
+    const data = await res.json();
+    const issues = data?.data?.issues?.nodes || [];
+    const total = issues.length;
+    const resolved = issues.filter(i => ['done','resolved','complete','cancelled'].some(s => i.state?.name?.toLowerCase().includes(s))).length;
+    const urgent = issues.filter(i => i.priority === 1).length;
+    const rate = total > 0 ? Math.round((resolved/total)*100) + '%' : '—';
+    document.getElementById('m-total').textContent = total;
+    document.getElementById('m-urgent').textContent = urgent;
+    document.getElementById('m-resolved').textContent = resolved;
+    document.getElementById('m-rate').textContent = rate;
+    document.getElementById('a-total').textContent = total;
+    document.getElementById('a-rate').textContent = rate;
+    document.getElementById('a-urgent').textContent = urgent;
+    document.getElementById('linear-count').textContent = total;
+    document.getElementById('sys-tickets').textContent = total;
+    const pColors = {0:'#aaa',1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
+    const pNames = {0:'None',1:'Urgent',2:'High',3:'Medium',4:'Low'};
+    const pClass = {0:'b-open',1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
+    const rows = issues.slice(0,12).map(i => `
+      <div class="ticket-row">
+        <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
+        <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
+        <div style="font-size:11px;color:#888">${i.identifier}</div>
+        <div><span class="badge" style="background:${pColors[i.priority]}22;color:${pColors[i.priority]}">${pNames[i.priority]||'—'}</span></div>
+        <div><span class="badge ${pClass[i.priority]||'b-open'}">${i.state?.name||'—'}</span></div>
+      </div>`).join('');
+    document.getElementById('ticket-list').innerHTML = rows || '<div style="padding:20px;text-align:center;color:#aaa">No tickets found</div>';
+    const cats = {};
+    issues.forEach(i => {
+      const t = i.title.toLowerCase();
+      const cat = t.includes('vpn')?'VPN':t.includes('slow')||t.includes('cpu')?'Slow computer':t.includes('outlook')||t.includes('email')?'Outlook':t.includes('wifi')||t.includes('wi-fi')||t.includes('internet')?'Wi-Fi':t.includes('print')?'Printer':t.includes('password')||t.includes('locked')?'Password':t.includes('drive')||t.includes('disk')||t.includes('hardware')?'Hardware':'Other';
+      cats[cat] = (cats[cat]||0)+1;
+    });
+    const max = Math.max(...Object.values(cats),1);
+    const catHtml = Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([cat,count]) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:0.5px solid #f5f5f5">
+        <div style="width:110px;font-size:12px;color:#444">${cat}</div>
+        <div style="flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden"><div style="width:${Math.round((count/max)*100)}%;height:100%;background:#378ADD;border-radius:4px"></div></div>
+        <div style="width:20px;font-size:11px;color:#888;text-align:right">${count}</div>
+      </div>`).join('');
+    document.getElementById('analytics-content').innerHTML = `<div style="padding:0">${catHtml}</div>`;
+  } catch(e) {
+    document.getElementById('ticket-list').innerHTML = '<div style="padding:20px;text-align:center;color:#aaa">Could not load tickets</div>';
+  }
+}
+
+function generateUptime(el, okPct=100) {
+  const el2 = document.getElementById(el);
+  if(!el2) return;
+  el2.innerHTML = Array.from({length:20},(_,i)=>{
+    const ok = Math.random()*100 < okPct;
+    return `<div class="utick" style="background:${ok?'#3B6D11':'#E24B4A'}"></div>`;
+  }).join('');
+}
+
+function addLog(time, src, msg, level) {
+  const srcClass = {TWILIO:'ls-twilio',CLAUDE:'ls-claude',LINEAR:'ls-linear',SSH:'ls-ssh',SKILL:'ls-skill'}[src]||'ls-sys';
+  const lvlClass = {INFO:'ll-info',OK:'ll-ok',WARN:'ll-warn',ERR:'ll-err'}[level]||'ll-info';
+  logs.unshift({time,src,msg,level,srcClass,lvlClass});
+  if(logs.length > 100) logs.pop();
+  renderLogs();
+}
+
+function renderLogs() {
+  const filtered = logFilter==='all' ? logs : logFilter==='ERR' ? logs.filter(l=>l.level==='ERR') : logs.filter(l=>l.src===logFilter);
+  const html = filtered.slice(0,40).map(l=>`
+    <div class="log-row">
+      <span class="log-time">${l.time}</span>
+      <span class="log-src ${l.srcClass}">${l.src}</span>
+      <span class="log-msg">${l.msg}</span>
+      <span class="log-level ${l.lvlClass}">${l.level}</span>
+    </div>`).join('');
+  document.getElementById('log-table').innerHTML = html || '<div style="padding:20px;text-align:center;color:#aaa;font-size:12px">No logs matching filter</div>';
+}
+
+function filterLog(f, el) {
+  logFilter = f;
+  document.querySelectorAll('.lf').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
+  renderLogs();
+}
+
+function now() {
+  return new Date().toTimeString().slice(0,8);
+}
+
+function renderCalls() {
+  const calls = Object.values(activeCalls);
+  const badge = document.getElementById('call-badge');
+  const countEl = document.getElementById('active-count');
+  countEl.textContent = calls.length + ' active call' + (calls.length===1?'':'s');
+  if(calls.length > 0) {
+    badge.style.display='inline';
+    badge.textContent = calls.length;
+  } else {
+    badge.style.display='none';
+  }
+  const list = document.getElementById('call-list');
+  if(calls.length === 0) {
+    list.innerHTML = '<div class="no-calls"><div class="no-calls-icon">📞</div><div>No active calls right now</div><div style="font-size:11px;margin-top:4px">Calls will appear here in real time</div></div>';
+    return;
+  }
+  list.innerHTML = calls.map(c=>`
+    <div class="call-card ${selectedCall===c.call_sid?'highlighted':''}" onclick="selectCall('${c.call_sid}')">
+      <div class="call-head">
+        <div class="call-pulse ${c.emp_id?'cp-green':'cp-amber'}"></div>
+        <div class="call-info">
+          <div class="call-name">${c.emp_id ? c.emp_id + ' — ' + (c.name||'Employee') : 'Unknown caller'}</div>
+          <div class="call-sub">${c.emp_id ? (c.machine||'Machine lookup done') : 'Awaiting employee ID'}</div>
+        </div>
+        <div class="call-duration">${formatDuration(c.started)}</div>
+      </div>
+      <div class="call-btns">
+        <button class="btn btn-monitor" onclick="event.stopPropagation();selectCall('${c.call_sid}')">Monitor</button>
+        <button class="btn btn-whisper" onclick="event.stopPropagation();selectCall('${c.call_sid}');document.getElementById('whisper-input').focus()">Whisper</button>
+        <button class="btn btn-takeover" onclick="event.stopPropagation();takeover('${c.call_sid}')">Take over</button>
+      </div>
+    </div>`).join('');
+}
+
+function formatDuration(started) {
+  if(!started) return '0:00';
+  const s = Math.floor((Date.now()-started)/1000);
+  return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');
+}
+
+setInterval(renderCalls, 1000);
+
+function selectCall(sid) {
+  selectedCall = sid;
+  renderCalls();
+  const c = activeCalls[sid];
+  if(!c) return;
+  const panel = document.getElementById('detail-panel');
+  panel.innerHTML = `
+    <div class="detail-card">
+      <div class="detail-title">Call details</div>
+      <div class="detail-row"><span class="detail-key">Call SID</span><span class="detail-val">${sid.slice(0,12)}...</span></div>
+      <div class="detail-row"><span class="detail-key">Employee</span><span class="detail-val">${c.emp_id||'—'}</span></div>
+      <div class="detail-row"><span class="detail-key">Machine</span><span class="detail-val">${c.machine||'—'}</span></div>
+      <div class="detail-row"><span class="detail-key">Turns</span><span class="detail-val">${c.transcript?c.transcript.length:0}</span></div>
+    </div>
+    <div class="detail-card">
+      <div class="detail-title">Live transcript</div>
+      <div class="transcript" id="transcript-${sid}">
+        ${(c.transcript||[]).map(t=>`<div class="t-line ${t.role==='caller'?'t-caller':'t-agent'}">${t.text}</div>`).join('')}
+        ${(!c.transcript||c.transcript.length===0)?'<div style="color:#aaa;font-size:11px;text-align:center;padding:10px">Conversation will appear here</div>':''}
+      </div>
+    </div>
+    <div class="detail-card">
+      <div class="detail-title">Whisper to agent (caller won't hear)</div>
+      <div class="whisper-box">
+        <input class="whisper-input" id="whisper-input" placeholder="Type a hint for the agent..." />
+        <button class="whisper-send" onclick="sendWhisper('${sid}')">Send</button>
+      </div>
+    </div>
+    <div class="takeover-actions">
+      <button class="big-btn big-red" onclick="takeover('${sid}')">Take over call — connect to my phone</button>
+      <button class="big-btn big-amber" onclick="document.getElementById('whisper-input').focus()">Whisper coaching mode</button>
+    </div>`;
+}
+
+async function takeover(sid) {
+  if(!confirm('Take over this call? Your operator phone will ring.')) return;
+  try {
+    await fetch(`${BASE}/dashboard/takeover/${sid}`, {method:'POST'});
+    addLog(now(),'SYS',`Operator took over call ${sid.slice(0,8)}...`,'WARN');
+  } catch(e) {
+    alert('Takeover failed: ' + e.message);
+  }
+}
+
+async function sendWhisper(sid) {
+  const msg = document.getElementById('whisper-input').value.trim();
+  if(!msg) return;
+  try {
+    await fetch(`${BASE}/dashboard/whisper/${sid}`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg})
+    });
+    document.getElementById('whisper-input').value='';
+    addLog(now(),'SYS',`Whisper sent to agent: "${msg}"`,'INFO');
+    const tc = document.getElementById('transcript-'+sid);
+    if(tc) tc.innerHTML += `<div class="t-line t-sys">Whisper: ${msg}</div>`;
+  } catch(e) {
+    alert('Whisper failed: ' + e.message);
+  }
+}
+
+const empNames = {EMP001:'Alice Johnson',EMP002:'Bob Smith',EMP003:'Carol White',EMP004:'Dave Brown'};
+
+let _editingSkill = null;
+
+async function loadSkillList() {
+  try {
+    const data = await (await fetch(`${BASE}/api/skills`)).json();
+    const html = (data.skills || []).map(s => `
+      <div class="skill-r" style="cursor:pointer" onclick="editSkill('${s.name}')">
+        <span class="skill-n">${s.name}</span>
+        <div class="skill-track"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
+        <span class="skill-c" style="font-size:9px;color:#3B6D11">${s.lines}L</span>
+      </div>`).join('');
+    document.getElementById('skill-list').innerHTML = html || '<div style="color:#aaa;font-size:12px">No skills yet</div>';
+  } catch(e) { console.error('Skills error:', e); }
+}
+
+async function editSkill(name) {
+  _editingSkill = name;
+  const data = await (await fetch(`${BASE}/api/skills/${name}`)).json();
+  document.getElementById('edit-skill-title').textContent = 'Editing: ' + name;
+  document.getElementById('edit-skill-content').value = data.content || '';
+  document.getElementById('edit-skill-editor').classList.add('open');
+  document.getElementById('new-skill-editor').classList.remove('open');
+}
+
+async function saveEditSkill() {
+  if(!_editingSkill) return;
+  const content = document.getElementById('edit-skill-content').value;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill updated: ${_editingSkill}`,'OK');
+}
+
+async function deleteSkill() {
+  if(!_editingSkill) return;
+  if(!confirm(`Delete ${_editingSkill}? This cannot be undone.`)) return;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {method:'DELETE'});
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill deleted: ${_editingSkill}`,'WARN');
+}
+
+function hideEditSkill() {
+  document.getElementById('edit-skill-editor').classList.remove('open');
+  _editingSkill = null;
+}
+
+function showNewSkill() {
+  document.getElementById('new-skill-editor').classList.add('open');
+  document.getElementById('edit-skill-editor').classList.remove('open');
+  document.getElementById('new-skill-name').focus();
+}
+
+function hideNewSkill() {
+  document.getElementById('new-skill-editor').classList.remove('open');
+  document.getElementById('new-skill-content').value = '';
+  document.getElementById('new-skill-name').value = '';
+}
+
+async function saveNewSkill() {
+  let name = document.getElementById('new-skill-name').value.trim();
+  if(!name) { alert('Enter a filename'); return; }
+  if(!name.endsWith('.md')) name += '.md';
+  const content = document.getElementById('new-skill-content').value;
+  await fetch(`${BASE}/api/skills/${name}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  hideNewSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`New skill created: ${name}`,'OK');
+}
+
+async function uploadSkill(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const content = await file.text();
+  await fetch(`${BASE}/api/skills/${file.name}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  input.value = '';
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill uploaded: ${file.name}`,'OK');
+}
+
+function selectVoice(el) {
+  document.querySelectorAll('.voice-opt').forEach(v => v.classList.remove('selected'));
+  el.classList.add('selected');
+  const provider = el.dataset.provider;
+  const needsKey = provider !== 'polly';
+  const keyInput = document.getElementById('voice-api-key');
+  keyInput.placeholder = needsKey ? `${provider} API key (required)` : 'No API key needed for Polly';
+  keyInput.style.opacity = needsKey ? '1' : '0.4';
+}
+
+async function applyVoice() {
+  const selected = document.querySelector('.voice-opt.selected');
+  if(!selected) return;
+  const provider = selected.dataset.provider;
+  const voice = selected.dataset.voice;
+  const api_key = document.getElementById('voice-api-key').value.trim();
+  const res = await fetch(`${BASE}/api/voice`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({provider, voice, api_key})
+  });
+  const data = await res.json();
+  const statusEl = document.getElementById('voice-status');
+  if(data.status === 'ok') {
+    statusEl.textContent = `✓ Active: ${voice} via ${provider}`;
+    statusEl.style.color = '#3B6D11';
+    addLog(now(),'SYS',`Voice switched to ${voice} (${provider})`,'OK');
+  } else {
+    statusEl.textContent = 'Error applying voice';
+    statusEl.style.color = '#A32D2D';
+  }
+}
+
+async function loadStats() {
+  try {
+    const data = await (await fetch(`${BASE}/api/stats`)).json();
+    const t = document.getElementById('stat-total');
+    const d = document.getElementById('stat-today');
+    if(t) t.textContent = data.calls_total;
+    if(d) d.textContent = data.calls_today;
+  } catch(e) {}
+}
+
+async function loadAdminData() {
+  try {
+    const data = await (await fetch(`${BASE}/api/health`)).json();
+    const avatarColors = ['ea-blue','ea-green','ea-amber','ea-purple','ea-blue','ea-green'];
+    const empNames = {
+      EMP001:['Alice Johnson','Engineering · Windows'],
+      EMP002:['Bob Smith','Marketing · Linux'],
+      EMP003:['Carol White','Finance · Windows'],
+      EMP004:['Dave Brown','IT · Linux']
+    };
+    if(data.ssh) {
+      const empHtml = Object.entries(empNames).map(([id,[name,sub]],i) => `
+        <div class="emp-row">
+          <div class="emp-avatar ${avatarColors[i]}">${name.split(' ').map(n=>n[0]).join('')}</div>
+          <div class="emp-info"><div class="emp-name">${name}</div><div class="emp-sub">${id} · ${sub}</div></div>
+          <span class="badge b-warn">SSH demo</span>
+        </div>`).join('');
+      document.getElementById('emp-list').innerHTML = empHtml;
+    }
+    if(data.skills) {
+      const skillHtml = data.skills.files.map(f => `
+        <div class="skill-r">
+          <span class="skill-n">${f}</span>
+          <div class="skill-track"><div class="skill-fill" style="width:70%"></div></div>
+          <span class="skill-c v-active" style="font-size:9px;padding:1px 5px;border-radius:10px">Live</span>
+        </div>`).join('');
+      document.getElementById('skill-list').innerHTML = skillHtml;
+    }
+    if(data.twilio) {
+      const el = document.getElementById('sys-twilio');
+      if(el) el.textContent = data.twilio.status==='ok' ? '✓ '+data.twilio.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.twilio.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.anthropic) {
+      const el = document.getElementById('sys-anthropic');
+      if(el) el.textContent = data.anthropic.status==='ok' ? '✓ '+data.anthropic.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.anthropic.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.linear) {
+      const el = document.getElementById('sys-linear');
+      if(el) el.textContent = data.linear.status==='ok' ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.linear.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    const callsEl = document.getElementById('sys-calls');
+    if(callsEl) callsEl.textContent = Object.keys(activeCalls).length;
+  } catch(e) {
+    console.error('Admin data error:', e);
+  }
+}
+
+async function hangupCall(sid) {
+  if(!confirm('Hang up this call?')) return;
+  try {
+    await fetch(`${BASE}/dashboard/hangup/${sid}`, {method:'POST'});
+    addLog(now(),'SYS',`Call ${sid.slice(0,8)}... hung up from dashboard`,'WARN');
+  } catch(e) { alert('Hangup failed: ' + e.message); }
+}
+
+async function loadHealthData() {
+  try {
+    const res = await fetch(`${BASE}/api/health`);
+    const data = await res.json();
+    const map = {
+      twilio: {dot:'ad-ok', val:'status'},
+      anthropic: {dot:'claude-dot', val:'latency_ms'},
+      linear: {dot:'linear-dot', val:'latency_ms'},
+      ssh: {dot:null, val:'machines'},
+      railway: {dot:null, val:'region'},
+      skills: {dot:null, val:'count'}
+    };
+    if(data.anthropic) {
+      const ok = data.anthropic.status==='ok';
+      document.getElementById('claude-dot').style.background = ok?'#3B6D11':'#E24B4A';
+      document.getElementById('claude-latency').textContent = ok ? data.anthropic.latency_ms+'ms' : 'Error';
+    }
+    if(data.linear) {
+      const ok = data.linear.status==='ok';
+      document.getElementById('linear-dot').style.background = ok?'#3B6D11':'#E24B4A';
+      document.getElementById('linear-count').textContent = ok ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
+    }
+    addLog(now(),'SYS','API health check completed','OK');
+  } catch(e) {
+    addLog(now(),'SYS','Health check failed: '+e.message,'ERR');
+  }
+}
+
+_editingSkill = null;
+
+async function loadSkillList() {
+  try {
+    const data = await (await fetch(`${BASE}/api/skills`)).json();
+    const html = (data.skills || []).map(s => `
+      <div class="skill-r" style="cursor:pointer" onclick="editSkill('${s.name}')">
+        <span class="skill-n">${s.name}</span>
+        <div class="skill-track"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
+        <span class="skill-c" style="font-size:9px;color:#3B6D11">${s.lines}L</span>
+      </div>`).join('');
+    document.getElementById('skill-list').innerHTML = html || '<div style="color:#aaa;font-size:12px">No skills yet</div>';
+  } catch(e) { console.error('Skills error:', e); }
+}
+
+async function editSkill(name) {
+  _editingSkill = name;
+  const data = await (await fetch(`${BASE}/api/skills/${name}`)).json();
+  document.getElementById('edit-skill-title').textContent = 'Editing: ' + name;
+  document.getElementById('edit-skill-content').value = data.content || '';
+  document.getElementById('edit-skill-editor').classList.add('open');
+  document.getElementById('new-skill-editor').classList.remove('open');
+}
+
+async function saveEditSkill() {
+  if(!_editingSkill) return;
+  const content = document.getElementById('edit-skill-content').value;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill updated: ${_editingSkill}`,'OK');
+}
+
+async function deleteSkill() {
+  if(!_editingSkill) return;
+  if(!confirm(`Delete ${_editingSkill}? This cannot be undone.`)) return;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {method:'DELETE'});
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill deleted: ${_editingSkill}`,'WARN');
+}
+
+function hideEditSkill() {
+  document.getElementById('edit-skill-editor').classList.remove('open');
+  _editingSkill = null;
+}
+
+function showNewSkill() {
+  document.getElementById('new-skill-editor').classList.add('open');
+  document.getElementById('edit-skill-editor').classList.remove('open');
+  document.getElementById('new-skill-name').focus();
+}
+
+function hideNewSkill() {
+  document.getElementById('new-skill-editor').classList.remove('open');
+  document.getElementById('new-skill-content').value = '';
+  document.getElementById('new-skill-name').value = '';
+}
+
+async function saveNewSkill() {
+  let name = document.getElementById('new-skill-name').value.trim();
+  if(!name) { alert('Enter a filename'); return; }
+  if(!name.endsWith('.md')) name += '.md';
+  const content = document.getElementById('new-skill-content').value;
+  await fetch(`${BASE}/api/skills/${name}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  hideNewSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`New skill created: ${name}`,'OK');
+}
+
+async function uploadSkill(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const content = await file.text();
+  await fetch(`${BASE}/api/skills/${file.name}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  input.value = '';
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill uploaded: ${file.name}`,'OK');
+}
+
+function selectVoice(el) {
+  document.querySelectorAll('.voice-opt').forEach(v => v.classList.remove('selected'));
+  el.classList.add('selected');
+  const provider = el.dataset.provider;
+  const needsKey = provider !== 'polly';
+  const keyInput = document.getElementById('voice-api-key');
+  keyInput.placeholder = needsKey ? `${provider} API key (required)` : 'No API key needed for Polly';
+  keyInput.style.opacity = needsKey ? '1' : '0.4';
+}
+
+async function applyVoice() {
+  const selected = document.querySelector('.voice-opt.selected');
+  if(!selected) return;
+  const provider = selected.dataset.provider;
+  const voice = selected.dataset.voice;
+  const api_key = document.getElementById('voice-api-key').value.trim();
+  const res = await fetch(`${BASE}/api/voice`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({provider, voice, api_key})
+  });
+  const data = await res.json();
+  const statusEl = document.getElementById('voice-status');
+  if(data.status === 'ok') {
+    statusEl.textContent = `✓ Active: ${voice} via ${provider}`;
+    statusEl.style.color = '#3B6D11';
+    addLog(now(),'SYS',`Voice switched to ${voice} (${provider})`,'OK');
+  } else {
+    statusEl.textContent = 'Error applying voice';
+    statusEl.style.color = '#A32D2D';
+  }
+}
+
+async function loadStats() {
+  try {
+    const data = await (await fetch(`${BASE}/api/stats`)).json();
+    const t = document.getElementById('stat-total');
+    const d = document.getElementById('stat-today');
+    if(t) t.textContent = data.calls_total;
+    if(d) d.textContent = data.calls_today;
+  } catch(e) {}
+}
+
+async function loadAdminData() {
+  try {
+    const data = await (await fetch(`${BASE}/api/health`)).json();
+    const avatarColors = ['ea-blue','ea-green','ea-amber','ea-purple','ea-blue','ea-green'];
+    const empNames = {
+      EMP001:['Alice Johnson','Engineering · Windows'],
+      EMP002:['Bob Smith','Marketing · Linux'],
+      EMP003:['Carol White','Finance · Windows'],
+      EMP004:['Dave Brown','IT · Linux']
+    };
+    if(data.ssh) {
+      const empHtml = Object.entries(empNames).map(([id,[name,sub]],i) => `
+        <div class="emp-row">
+          <div class="emp-avatar ${avatarColors[i]}">${name.split(' ').map(n=>n[0]).join('')}</div>
+          <div class="emp-info"><div class="emp-name">${name}</div><div class="emp-sub">${id} · ${sub}</div></div>
+          <span class="badge b-warn">SSH demo</span>
+        </div>`).join('');
+      document.getElementById('emp-list').innerHTML = empHtml;
+    }
+    if(data.skills) {
+      const skillHtml = data.skills.files.map(f => `
+        <div class="skill-r">
+          <span class="skill-n">${f}</span>
+          <div class="skill-track"><div class="skill-fill" style="width:70%"></div></div>
+          <span class="skill-c v-active" style="font-size:9px;padding:1px 5px;border-radius:10px">Live</span>
+        </div>`).join('');
+      document.getElementById('skill-list').innerHTML = skillHtml;
+    }
+    if(data.twilio) {
+      const el = document.getElementById('sys-twilio');
+      if(el) el.textContent = data.twilio.status==='ok' ? '✓ '+data.twilio.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.twilio.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.anthropic) {
+      const el = document.getElementById('sys-anthropic');
+      if(el) el.textContent = data.anthropic.status==='ok' ? '✓ '+data.anthropic.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.anthropic.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.linear) {
+      const el = document.getElementById('sys-linear');
+      if(el) el.textContent = data.linear.status==='ok' ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.linear.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    const callsEl = document.getElementById('sys-calls');
+    if(callsEl) callsEl.textContent = Object.keys(activeCalls).length;
+  } catch(e) {
+    console.error('Admin data error:', e);
+  }
+}
+
+async function hangupCall(sid) {
+  if(!confirm('Hang up this call?')) return;
+  try {
+    await fetch(`${BASE}/dashboard/hangup/${sid}`, {method:'POST'});
+    addLog(now(),'SYS',`Call ${sid.slice(0,8)}... hung up from dashboard`,'WARN');
+  } catch(e) { alert('Hangup failed: ' + e.message); }
+}
+
+async function loadHealthData() {
+  try {
+    const res = await fetch(`${BASE}/api/health`);
+    const data = await res.json();
+    const map = {
+      twilio: {dot:'ad-ok', val:'status'},
+      anthropic: {dot:'claude-dot', val:'latency_ms'},
+      linear: {dot:'linear-dot', val:'latency_ms'},
+      ssh: {dot:null, val:'machines'},
+      railway: {dot:null, val:'region'},
+      skills: {dot:null, val:'count'}
+    };
+    if(data.anthropic) {
+      const ok = data.anthropic.status==='ok';
+      document.getElementById('claude-dot').style.background = ok?'#3B6D11':'#E24B4A';
+      document.getElementById('claude-latency').textContent = ok ? data.anthropic.latency_ms+'ms' : 'Error';
+    }
+    if(data.linear) {
+      const ok = data.linear.status==='ok';
+      document.getElementById('linear-dot').style.background = ok?'#3B6D11':'#E24B4A';
+      document.getElementById('linear-count').textContent = ok ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
+    }
+    addLog(now(),'SYS','API health check completed','OK');
+  } catch(e) {
+    addLog(now(),'SYS','Health check failed: '+e.message,'ERR');
+  }
+}
+
+function connectWS() {
+  const wsUrl = BASE.replace('https://','wss://').replace('http://','ws://') + '/ws/calls';
+  const ws = new WebSocket(wsUrl);
+  ws.onopen = () => {
+    document.getElementById('ws-status').textContent = 'Connected';
+    document.getElementById('ws-status').style.color = '#3B6D11';
+    addLog(now(),'SYS','WebSocket connected to server','OK');
+  };
+  ws.onclose = () => {
+    document.getElementById('ws-status').textContent = 'Disconnected — reconnecting...';
+    document.getElementById('ws-status').style.color = '#A32D2D';
+    setTimeout(connectWS, 3000);
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if(msg.type==='init') {
+      msg.calls.forEach(c => {
+        activeCalls[c.call_sid] = {...(activeCalls[c.call_sid]||{}), call_sid:c.call_sid, emp_id:c.emp_id, started:Date.now()};
+      });
+      renderCalls();
+    } else if(msg.type==='call_start') {
+      activeCalls[msg.call_sid] = {call_sid:msg.call_sid, started:Date.now(), transcript:[]};
+      addLog(now(),'TWILIO',`Inbound call: ${msg.call_sid.slice(0,12)}...`,'INFO');
+      renderCalls();
+    } else if(msg.type==='emp_identified') {
+      if(activeCalls[msg.call_sid]) {
+        activeCalls[msg.call_sid].emp_id = msg.emp_id;
+        activeCalls[msg.call_sid].name = empNames[msg.emp_id]||msg.emp_id;
+        activeCalls[msg.call_sid].machine = msg.machine;
+      }
+      addLog(now(),'TWILIO',`Employee identified: ${msg.emp_id} → ${msg.machine}`,'OK');
+      renderCalls();
+    } else if(msg.type==='transcript') {
+      if(activeCalls[msg.call_sid]) {
+        if(!activeCalls[msg.call_sid].transcript) activeCalls[msg.call_sid].transcript=[];
+        activeCalls[msg.call_sid].transcript.push({role:msg.role,text:msg.text});
+      }
+      const src = msg.role==='caller'?'TWILIO':'CLAUDE';
+      const label = msg.role==='caller'?'Caller':'Agent';
+      addLog(now(),src,`${label}: ${msg.text}`,'INFO');
+      if(selectedCall===msg.call_sid) {
+        const tc = document.getElementById('transcript-'+msg.call_sid);
+        if(tc) {
+          tc.innerHTML += `<div class="t-line ${msg.role==='caller'?'t-caller':'t-agent'}">${msg.text}</div>`;
+          tc.scrollTop = tc.scrollHeight;
+        }
+      }
+    } else if(msg.type==='operator_requested') {
+      addLog(now(),'TWILIO','Caller pressed 0 — operator requested','WARN');
+    } else if(msg.type==='whisper_ack') {
+      addLog(now(),'SYS',`Whisper delivered to agent: "${msg.message}"`,'OK');
+      const tc = document.getElementById('transcript-'+msg.call_sid);
+      if(tc) tc.innerHTML += `<div class="t-line t-sys" style="background:#faeeda;color:#854F0B">Whisper delivered: ${msg.message}</div>`;
+    } else if(msg.type==='whisper_ack') {
+      addLog(now(),'SYS',`Whisper delivered to agent: "${msg.message}"`,'OK');
+      const tc = document.getElementById('transcript-'+msg.call_sid);
+      if(tc) tc.innerHTML += `<div class="t-line t-sys" style="background:#faeeda;color:#854F0B">Whisper delivered: ${msg.message}</div>`;
+    } else if(msg.type==='takeover') {
+      addLog(now(),'SYS',`Dashboard takeover for ${msg.call_sid.slice(0,8)}...`,'WARN');
+    } else if(msg.type==='call_end') {
+      addLog(now(),'TWILIO',`Call ended: ${msg.call_sid.slice(0,8)}...`,'INFO');
+      delete activeCalls[msg.call_sid];
+      if(selectedCall===msg.call_sid) {
+        selectedCall=null;
+        document.getElementById('detail-panel').innerHTML='<div class="detail-card" style="color:#aaa;text-align:center;padding:30px">Call ended</div>';
+      }
+      renderCalls();
+    }
+  };
+}
+
+['twilio','claude','linear','ssh','railway','skills'].forEach(s => {
+  generateUptime('uptime-'+s, s==='ssh'?0:s==='claude'?95:100);
+});
+
+loadLinearTickets();
+loadHealthData();
+loadAdminData();
+connectWS();
+setInterval(loadLinearTickets, 60000);
+setInterval(loadHealthData, 30000);
+setInterval(loadAdminData, 30000);
+</script>
+</body>
+</html>
+
+
