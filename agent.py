@@ -62,7 +62,7 @@ def _get_client() -> Anthropic:
     return _client
 
 
-def get_agent_response(history: list[dict], ssh_context: str = None) -> str:
+def get_agent_response(history: list[dict], ssh_context: str = None, whisper: str = None) -> str:
     client = _get_client()
 
     # Build dynamic system prompt with skill + SSH context
