@@ -396,7 +396,7 @@ async function loadLinearTickets() {
     const pColors = {0:'#aaa',1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
     const pNames = {0:'None',1:'Urgent',2:'High',3:'Medium',4:'Low'};
     const pClass = {0:'b-open',1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
-    const rows = issues.slice(0,15).map(i => `
+    const rows = issues.map(i => `
       <div class="ticket-row">
         <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
         <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
