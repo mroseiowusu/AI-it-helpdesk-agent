@@ -267,7 +267,6 @@ async def whisper(call_sid: str, request: Request):
 
 @app.get("/api/tickets")
 async def get_tickets():
-    import requests as req
     key = os.environ.get("LINEAR_API_KEY", "")
     query = """{ issues(filter:{team:{id:{eq:"5a834841-6f92-435f-bad9-4221bf3385ea"}}},orderBy:createdAt,last:50){nodes{id identifier title priority state{name}assignee{name}createdAt updatedAt}}}"""
     try:
