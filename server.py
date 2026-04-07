@@ -358,11 +358,12 @@ async def close_ticket(ticket_id: str):
     if not target:
         return {"error": "No done/cancelled state found"}
     # Update the ticket
+    _target_id = target["id"]
+    _mutation = f'mutation {{ issueUpdate(id: "{ticket_id}", input: {{stateId: "{_target_id}"}}) {{ success issue {{ identifier state {{ name }} }} }} }}'
     _mr = _uc.Request("https://api.linear.app/graphql",
-        data=_jc.dumps({"query": f'mutation {{ issueUpdate(id: "{ticket_id}", input: {{stateId: "{target[\"id\"]}"  }}) {{ success issue {{ identifier state {{ name }} }} }} }}'}).encode(),
+        data=_jc.dumps({"query": _mutation}).encode(),
         headers={"Authorization": key, "Content-Type": "application/json"}, method="POST")
     return _jc.loads(_uc.urlopen(_mr, timeout=10).read())
-
 @app.get("/api/analytics")
 async def get_analytics():
     import sqlite3 as sq
