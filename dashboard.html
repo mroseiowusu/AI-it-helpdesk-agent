@@ -404,20 +404,7 @@ async function loadLinearTickets() {
         <div><span class="badge ${pClass[i.priority]||'b-open'}">${i.state?.name||'—'}</span></div>
       </div>`).join('');
     document.getElementById('ticket-list').innerHTML = rows || '<div style="padding:20px;text-align:center;color:#aaa">No tickets found</div>';
-    const cats = {};
-    issues.forEach(i => {
-      const t = i.title.toLowerCase();
-      const cat = t.includes('vpn')?'VPN':t.includes('slow')||t.includes('cpu')?'Slow computer':t.includes('outlook')||t.includes('email')?'Outlook':t.includes('wifi')||t.includes('wi-fi')||t.includes('internet')?'Wi-Fi':t.includes('print')?'Printer':t.includes('password')||t.includes('locked')?'Password':t.includes('drive')||t.includes('disk')||t.includes('hardware')?'Hardware':'Other';
-      cats[cat] = (cats[cat]||0)+1;
-    });
-    const max = Math.max(...Object.values(cats),1);
-    const catHtml = Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([cat,count]) => `
-      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:0.5px solid #f5f5f5">
-        <div style="width:110px;font-size:12px;color:#444">${cat}</div>
-        <div style="flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden"><div style="width:${Math.round((count/max)*100)}%;height:100%;background:#378ADD;border-radius:4px"></div></div>
-        <div style="width:20px;font-size:11px;color:#888;text-align:right">${count}</div>
-      </div>`).join('');
-    document.getElementById('analytics-content').innerHTML = `<div style="padding:0">${catHtml}</div>`;
+
   } catch(e) {
     document.getElementById('ticket-list').innerHTML = '<div style="padding:20px;text-align:center;color:#aaa">Could not load tickets</div>';
   }
