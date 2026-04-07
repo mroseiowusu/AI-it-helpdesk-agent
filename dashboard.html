@@ -935,8 +935,8 @@ async function loadStats() {
 }
 
 _allIssues = [];
-let _sortKey = 'date';
-let _sortAsc = false;
+_sortKey = 'date';
+_sortAsc = false;
 
 function sortTickets(key) {
   if(_sortKey === key) { _sortAsc = !_sortAsc; } else { _sortKey = key; _sortAsc = true; }
