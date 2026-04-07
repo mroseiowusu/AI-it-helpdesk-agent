@@ -271,11 +271,13 @@ async def get_tickets():
     key = os.environ.get("LINEAR_API_KEY", "")
     query = """{ issues(filter:{team:{id:{eq:"5a834841-6f92-435f-bad9-4221bf3385ea"}}},orderBy:createdAt,last:50){nodes{id identifier title priority state{name}assignee{name}createdAt updatedAt}}}"""
     try:
-        r = req.post("https://api.linear.app/graphql",
-            json={"query": query},
+        import json as _jj
+        from urllib.request import urlopen, Request as _RR
+        _req = _RR("https://api.linear.app/graphql",
+            data=_jj.dumps({"query": query}).encode(),
             headers={"Authorization": key, "Content-Type": "application/json"},
-            timeout=10)
-        return r.json()
+            method="POST")
+        return _jj.loads(urlopen(_req, timeout=10).read())
     except Exception as e:
         return {"error": str(e)}
 
@@ -311,12 +313,14 @@ async def health_check():
     # Linear
     try:
         t0 = time.time()
-        r = req.post("https://api.linear.app/graphql",
-            json={"query": "{ viewer { id } }"},
+        import json as _jh
+        from urllib.request import urlopen, Request as _RH
+        _req = _RH("https://api.linear.app/graphql",
+            data=_jh.dumps({"query": "{ viewer { id } }"}).encode(),
             headers={"Authorization": os.environ.get("LINEAR_API_KEY",""),
-                     "Content-Type": "application/json"},
-            timeout=5)
-        results["linear"] = {"status": "ok" if r.status_code==200 else "error",
+                     "Content-Type": "application/json"}, method="POST")
+        _resp = urlopen(_req, timeout=5)
+        results["linear"] = {"status": "ok" if _resp.status==200 else "error",
                               "latency_ms": round((time.time()-t0)*1000)}
     except Exception as e:
         results["linear"] = {"status": "error", "message": str(e)[:80]}
