@@ -358,10 +358,10 @@ async def close_ticket(ticket_id: str):
     if not target:
         return {"error": "No done/cancelled state found"}
     # Update the ticket
-    r = req.post("https://api.linear.app/graphql",
-        json={"query": f'''mutation {{ issueUpdate(id: "{ticket_id}", input: {{stateId: "{target["id"]}"}}) {{ success issue {{ identifier state {{ name }} }} }} }}'''},
-        headers={"Authorization": key, "Content-Type": "application/json"}, timeout=10)
-    return r.json()
+    _mr = _uc.Request("https://api.linear.app/graphql",
+        data=_jc.dumps({"query": f'mutation {{ issueUpdate(id: "{ticket_id}", input: {{stateId: "{target[\"id\"]}"  }}) {{ success issue {{ identifier state {{ name }} }} }} }}'}).encode(),
+        headers={"Authorization": key, "Content-Type": "application/json"}, method="POST")
+    return _jc.loads(_uc.urlopen(_mr, timeout=10).read())
 
 @app.get("/api/analytics")
 async def get_analytics():
