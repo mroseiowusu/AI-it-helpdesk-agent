@@ -383,147 +383,33 @@ async function loadLinearTickets() {
     const resolved = issues.filter(i => ['done','resolved','complete','cancelled'].some(s => i.state?.name?.toLowerCase().includes(s))).length;
     const urgent = issues.filter(i => i.priority === 1).length;
     const rate = total > 0 ? Math.round((resolved/total)*100) + '%' : '—';
-    document.getElementById('m-total').textContent = total;
-    document.getElementById('m-urgent').textContent = urgent;
-    document.getElementById('m-resolved').textContent = resolved;
-    document.getElementById('m-rate').textContent = rate;
-    document.getElementById('a-total').textContent = total;
-    document.getElementById('a-rate').textContent = rate;
-    document.getElementById('a-urgent').textContent = urgent;
-    document.getElementById('linear-count').textContent = total;
-    document.getElementById('sys-tickets').textContent = total;
+    const el = id => document.getElementById(id);
+    if(el('m-total')) el('m-total').textContent = total;
+    if(el('m-urgent')) el('m-urgent').textContent = urgent;
+    if(el('m-resolved')) el('m-resolved').textContent = resolved;
+    if(el('m-rate')) el('m-rate').textContent = rate;
+    if(el('a-total')) el('a-total').textContent = total;
+    if(el('a-rate')) el('a-rate').textContent = rate;
+    if(el('a-urgent')) el('a-urgent').textContent = urgent;
+    if(el('linear-count')) el('linear-count').textContent = total;
+    if(el('sys-tickets')) el('sys-tickets').textContent = total;
     const pColors = {0:'#aaa',1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
     const pNames = {0:'None',1:'Urgent',2:'High',3:'Medium',4:'Low'};
     const pClass = {0:'b-open',1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
-    const rows = issues.slice(0,12).map(i => `
+    const rows = issues.slice(0,15).map(i => `
       <div class="ticket-row">
         <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
         <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
         <div style="font-size:11px;color:#888">${i.identifier}</div>
-        <div><span class="badge" style="background:${pColors[i.priority]}22;color:${pColors[i.priority]}">${pNames[i.priority]||'—'}</span></div>
+        <div><span class="badge" style="background:${pColors[i.priority]||'#aaa'}22;color:${pColors[i.priority]||'#aaa'}">${pNames[i.priority]||'—'}</span></div>
         <div><span class="badge ${pClass[i.priority]||'b-open'}">${i.state?.name||'—'}</span></div>
       </div>`).join('');
-    document.getElementById('ticket-list').innerHTML = rows || '<div style="padding:20px;text-align:center;color:#aaa">No tickets found</div>';
-
+    if(el('ticket-list')) el('ticket-list').innerHTML = rows || '<div style="padding:20px;text-align:center;color:#aaa">No tickets found</div>';
   } catch(e) {
-    document.getElementById('ticket-list').innerHTML = '<div style="padding:20px;text-align:center;color:#aaa">Could not load tickets</div>';
+    console.error('Tickets error:', e);
+    const tl = document.getElementById('ticket-list');
+    if(tl) tl.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa">Could not load tickets — ' + e.message + '</div>';
   }
-}
-
-function generateUptime(el, okPct=100) {
-  const el2 = document.getElementById(el);
-  if(!el2) return;
-  el2.innerHTML = Array.from({length:20},(_,i)=>{
-    const ok = Math.random()*100 < okPct;
-    return `<div class="utick" style="background:${ok?'#3B6D11':'#E24B4A'}"></div>`;
-  }).join('');
-}
-
-function addLog(time, src, msg, level) {
-  const srcClass = {TWILIO:'ls-twilio',CLAUDE:'ls-claude',LINEAR:'ls-linear',SSH:'ls-ssh',SKILL:'ls-skill'}[src]||'ls-sys';
-  const lvlClass = {INFO:'ll-info',OK:'ll-ok',WARN:'ll-warn',ERR:'ll-err'}[level]||'ll-info';
-  logs.unshift({time,src,msg,level,srcClass,lvlClass});
-  if(logs.length > 100) logs.pop();
-  renderLogs();
-}
-
-function renderLogs() {
-  const filtered = logFilter==='all' ? logs : logFilter==='ERR' ? logs.filter(l=>l.level==='ERR') : logs.filter(l=>l.src===logFilter);
-  const html = filtered.slice(0,40).map(l=>`
-    <div class="log-row">
-      <span class="log-time">${l.time}</span>
-      <span class="log-src ${l.srcClass}">${l.src}</span>
-      <span class="log-msg">${l.msg}</span>
-      <span class="log-level ${l.lvlClass}">${l.level}</span>
-    </div>`).join('');
-  document.getElementById('log-table').innerHTML = html || '<div style="padding:20px;text-align:center;color:#aaa;font-size:12px">No logs matching filter</div>';
-}
-
-function filterLog(f, el) {
-  logFilter = f;
-  document.querySelectorAll('.lf').forEach(e=>e.classList.remove('on'));
-  el.classList.add('on');
-  renderLogs();
-}
-
-function now() {
-  return new Date().toTimeString().slice(0,8);
-}
-
-function renderCalls() {
-  const calls = Object.values(activeCalls);
-  const badge = document.getElementById('call-badge');
-  const countEl = document.getElementById('active-count');
-  countEl.textContent = calls.length + ' active call' + (calls.length===1?'':'s');
-  if(calls.length > 0) {
-    badge.style.display='inline';
-    badge.textContent = calls.length;
-  } else {
-    badge.style.display='none';
-  }
-  const list = document.getElementById('call-list');
-  if(calls.length === 0) {
-    list.innerHTML = '<div class="no-calls"><div class="no-calls-icon">📞</div><div>No active calls right now</div><div style="font-size:11px;margin-top:4px">Calls will appear here in real time</div></div>';
-    return;
-  }
-  list.innerHTML = calls.map(c=>`
-    <div class="call-card ${selectedCall===c.call_sid?'highlighted':''}" onclick="selectCall('${c.call_sid}')">
-      <div class="call-head">
-        <div class="call-pulse ${c.emp_id?'cp-green':'cp-amber'}"></div>
-        <div class="call-info">
-          <div class="call-name">${c.emp_id ? c.emp_id + ' — ' + (c.name||'Employee') : 'Unknown caller'}</div>
-          <div class="call-sub">${c.emp_id ? (c.machine||'Machine lookup done') : 'Awaiting employee ID'}</div>
-        </div>
-        <div class="call-duration">${formatDuration(c.started)}</div>
-      </div>
-      <div class="call-btns">
-        <button class="btn btn-monitor" onclick="event.stopPropagation();selectCall('${c.call_sid}')">Monitor</button>
-        <button class="btn btn-whisper" onclick="event.stopPropagation();selectCall('${c.call_sid}');document.getElementById('whisper-input').focus()">Whisper</button>
-        <button class="btn btn-takeover" onclick="event.stopPropagation();takeover('${c.call_sid}')">Take over</button>
-      </div>
-    </div>`).join('');
-}
-
-function formatDuration(started) {
-  if(!started) return '0:00';
-  const s = Math.floor((Date.now()-started)/1000);
-  return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');
-}
-
-setInterval(renderCalls, 1000);
-
-function selectCall(sid) {
-  selectedCall = sid;
-  renderCalls();
-  const c = activeCalls[sid];
-  if(!c) return;
-  const panel = document.getElementById('detail-panel');
-  panel.innerHTML = `
-    <div class="detail-card">
-      <div class="detail-title">Call details</div>
-      <div class="detail-row"><span class="detail-key">Call SID</span><span class="detail-val">${sid.slice(0,12)}...</span></div>
-      <div class="detail-row"><span class="detail-key">Employee</span><span class="detail-val">${c.emp_id||'—'}</span></div>
-      <div class="detail-row"><span class="detail-key">Machine</span><span class="detail-val">${c.machine||'—'}</span></div>
-      <div class="detail-row"><span class="detail-key">Turns</span><span class="detail-val">${c.transcript?c.transcript.length:0}</span></div>
-    </div>
-    <div class="detail-card">
-      <div class="detail-title">Live transcript</div>
-      <div class="transcript" id="transcript-${sid}">
-        ${(c.transcript||[]).map(t=>`<div class="t-line ${t.role==='caller'?'t-caller':'t-agent'}">${t.text}</div>`).join('')}
-        ${(!c.transcript||c.transcript.length===0)?'<div style="color:#aaa;font-size:11px;text-align:center;padding:10px">Conversation will appear here</div>':''}
-      </div>
-    </div>
-    <div class="detail-card">
-      <div class="detail-title">Whisper to agent (caller won't hear)</div>
-      <div class="whisper-box">
-        <input class="whisper-input" id="whisper-input" placeholder="Type a hint for the agent..." />
-        <button class="whisper-send" onclick="sendWhisper('${sid}')">Send</button>
-      </div>
-    </div>
-    <div class="takeover-actions">
-      <button class="big-btn big-red" onclick="takeover('${sid}')">Take over call — connect to my phone</button>
-      <button class="big-btn big-amber" onclick="document.getElementById('whisper-input').focus()">Whisper coaching mode</button>
-    </div>`;
 }
 
 async function takeover(sid) {
