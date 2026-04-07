@@ -342,6 +342,24 @@ async def health_check():
 
     return results
 
+@app.post("/api/tickets/{ticket_id}/close")
+async def close_ticket(ticket_id: str):
+    import requests as req
+    key = os.environ.get("LINEAR_API_KEY", "")
+    # First get workflow states to find cancelled state
+    states_r = req.post("https://api.linear.app/graphql",
+        json={"query": '{ workflowStates(filter:{team:{id:{eq:"5a834841-6f92-435f-bad9-4221bf3385ea"}}}){nodes{id name type}}}'},
+        headers={"Authorization": key, "Content-Type": "application/json"}, timeout=10)
+    states = states_r.json()["data"]["workflowStates"]["nodes"]
+    target = next((s for s in states if s["type"] == "cancelled"), None) or              next((s for s in states if s["type"] == "completed"), None)
+    if not target:
+        return {"error": "No done/cancelled state found"}
+    # Update the ticket
+    r = req.post("https://api.linear.app/graphql",
+        json={"query": f'''mutation {{ issueUpdate(id: "{ticket_id}", input: {{stateId: "{target["id"]}"}}) {{ success issue {{ identifier state {{ name }} }} }} }}'''},
+        headers={"Authorization": key, "Content-Type": "application/json"}, timeout=10)
+    return r.json()
+
 @app.get("/api/analytics")
 async def get_analytics():
     import sqlite3 as sq
