@@ -25,7 +25,7 @@
   .metric-l { font-size: 11px; color: #888; margin-top: 3px; }
   .card { background: white; border-radius: 10px; border: 0.5px solid #e8e8e8; overflow: hidden; }
   .card-title { font-size: 11px; font-weight: 600; color: #666; padding: 12px 14px; border-bottom: 0.5px solid #f0f0f0; }
-  .ticket-row { display: grid; grid-template-columns: 10px 1fr 110px 80px 80px 130px; gap: 10px; padding: 9px 14px; border-bottom: 0.5px solid #f5f5f5; align-items: center; font-size: 12px; }
+  .ticket-row { display: grid; grid-template-columns: 10px 50px 1fr 110px 80px 80px 130px; gap: 10px; padding: 9px 14px; border-bottom: 0.5px solid #f5f5f5; align-items: center; font-size: 12px; }
   .ticket-row:last-child { border-bottom: none; }
   .ticket-head { display: grid; grid-template-columns: 10px 1fr 70px 80px 80px; gap: 10px; padding: 8px 14px; background: #f9f9f9; font-size: 10px; font-weight: 600; color: #888; border-bottom: 0.5px solid #e8e8e8; }
   .pri { width: 8px; height: 8px; border-radius: 50%; }
@@ -664,7 +664,8 @@ function sortTickets(key) {
   if(_sortKey === key) { _sortAsc = !_sortAsc; } else { _sortKey = key; _sortAsc = true; }
   const sorted = [..._allIssues].sort((a, b) => {
     let va, vb;
-    if(key === 'title') { va = a.title; vb = b.title; }
+    if(key === 'id') { va = a.identifier; vb = b.identifier; }
+    else if(key === 'title') { va = a.title; vb = b.title; }
     else if(key === 'priority') { va = a.priority; vb = b.priority; }
     else if(key === 'status') { va = a.state?.name||''; vb = b.state?.name||''; }
     else if(key === 'date') { va = a.createdAt; vb = b.createdAt; }
@@ -707,6 +708,7 @@ function renderTicketRows(issues) {
   const rows = issues.map(i => `
     <div class="ticket-row">
       <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
+      <div style="font-size:10px;color:#888;font-family:monospace">${i.identifier}</div>
       <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
       <div style="font-size:11px;color:#555;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${parseEmp(i.title)}</div>
       <div><span class="badge" style="background:${pColors[i.priority]||'#aaa'}22;color:${pColors[i.priority]||'#aaa'}">${pNames[i.priority]||'—'}</span></div>
@@ -942,7 +944,8 @@ function sortTickets(key) {
   if(_sortKey === key) { _sortAsc = !_sortAsc; } else { _sortKey = key; _sortAsc = true; }
   const sorted = [..._allIssues].sort((a, b) => {
     let va, vb;
-    if(key === 'title') { va = a.title; vb = b.title; }
+    if(key === 'id') { va = a.identifier; vb = b.identifier; }
+    else if(key === 'title') { va = a.title; vb = b.title; }
     else if(key === 'priority') { va = a.priority; vb = b.priority; }
     else if(key === 'status') { va = a.state?.name||''; vb = b.state?.name||''; }
     else if(key === 'date') { va = a.createdAt; vb = b.createdAt; }
@@ -985,6 +988,7 @@ function renderTicketRows(issues) {
   const rows = issues.map(i => `
     <div class="ticket-row">
       <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
+      <div style="font-size:10px;color:#888;font-family:monospace">${i.identifier}</div>
       <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
       <div style="font-size:11px;color:#555;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${parseEmp(i.title)}</div>
       <div><span class="badge" style="background:${pColors[i.priority]||'#aaa'}22;color:${pColors[i.priority]||'#aaa'}">${pNames[i.priority]||'—'}</span></div>
