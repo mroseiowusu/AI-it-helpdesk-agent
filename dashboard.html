@@ -313,7 +313,7 @@
   <div class="admin-card">
     <div class="admin-title" style="display:flex;align-items:center;justify-content:space-between">Skill files <button class="sk-btn sk-save" onclick="showNewSkill()">+ New</button></div>
     <div id="skill-list" style="margin-top:8px"><div style="color:#aaa;font-size:12px">Loading...</div></div>
-    <div class="upzone" onclick="document.getElementById('sk-upload').click()">Drop .md file or click to upload<input type="file" id="sk-upload" accept=".md" style="display:none" onchange="uploadSkill(this)"></div>
+    <div class="upzone" onclick="document.getElementById('sk-upload').click()">Drop any document or click to upload<input type="file" id="sk-upload" accept=".md,.txt,.docx,.pdf,.html,.csv,.rtf" style="display:none" onchange="uploadSkill(this)"></div>
     <div class="sk-ed" id="new-sk-ed">
       <div class="sk-tb"><span class="sk-title">New skill</span><input id="new-sk-name" placeholder="filename.md" style="font-size:11px;padding:2px 6px;border:0.5px solid #ddd;border-radius:4px;width:110px"><button class="sk-btn sk-save" onclick="saveNewSkill()">Save</button><button class="sk-btn sk-cancel" onclick="hideNewSkill()">Cancel</button></div>
       <textarea class="sk-ta" id="new-sk-content" placeholder="# Skill: Name&#10;&#10;## Triggers&#10;keyword1, keyword2&#10;&#10;## Steps&#10;1. Ask..."></textarea>
@@ -556,17 +556,141 @@ async function saveNewSkill() {
   addLog(now(),'SKILL',`New skill created: ${name}`,'OK');
 }
 
+async function extractFileText(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(['md','txt','html','csv','rtf'].includes(ext)) {
+    return await file.text();
+  }
+  if(ext === 'docx') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async e => {
+        try {
+          const mammoth = await import('https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js');
+          const result = await mammoth.extractRawValue({arrayBuffer: e.target.result});
+          resolve(result.value);
+        } catch(err) {
+          // Fallback: just read as text
+          resolve(await file.text().catch(() => ''));
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+  if(ext === 'pdf') {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async e => {
+        try {
+          const pdfjsLib = window['pdfjs-dist/build/pdf'];
+          if(!pdfjsLib) { resolve(await file.text().catch(() => '')); return; }
+          const pdf = await pdfjsLib.getDocument({data: e.target.result}).promise;
+          let text = '';
+          for(let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(s => s.str).join(' ') + '\n';
+          }
+          resolve(text);
+        } catch(err) { resolve(''); }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+  return await file.text().catch(() => '');
+}
+
+async function convertToSkillMarkdown(rawText, filename) {
+  const statusEl = document.getElementById('upload-status');
+  if(statusEl) { statusEl.textContent = 'Converting with Claude...'; statusEl.style.color='#BA7517'; }
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        messages: [{
+          role: 'user',
+          content: `Convert the following document into a structured Markdown skill file for an AI IT helpdesk agent.
+
+Use this exact format:
+# Skill: [Descriptive Name]
+
+## Triggers
+[comma-separated keywords that should activate this skill]
+
+## Overview
+[1-2 sentence summary of what this skill covers]
+
+## Diagnosis Steps
+1. [First question/step]
+2. [Second question/step]
+...
+
+## Common Fixes
+[List of fixes with brief explanations]
+
+## Escalation Triggers
+[When to escalate to a human]
+
+## Ticket Template
+[Brief template for logging the ticket]
+
+Document to convert:
+---
+${rawText.slice(0, 4000)}
+---
+
+Return ONLY the Markdown content, no preamble or explanation.`
+        }]
+      })
+    });
+    const data = await res.json();
+    const md = data?.content?.[0]?.text || '';
+    if(statusEl) { statusEl.textContent = ''; }
+    return md;
+  } catch(e) {
+    if(statusEl) { statusEl.textContent = 'Conversion failed: ' + e.message; statusEl.style.color='#E24B4A'; }
+    return '';
+  }
+}
+
 async function uploadSkill(input) {
   const file = input.files[0];
   if(!file) return;
-  const content = await file.text();
-  await fetch(`${BASE}/api/skills/${file.name}`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({content})
-  });
   input.value = '';
-  loadSkillList();
-  addLog(now(),'SKILL',`Skill uploaded: ${file.name}`,'OK');
+  const ext = file.name.split('.').pop().toLowerCase();
+  const baseName = file.name.replace(/\.[^.]+$/, '') + '.md';
+
+  if(ext === 'md') {
+    // Direct upload — no conversion needed
+    const text = await file.text();
+    await fetch(`${BASE}/api/skills/${file.name}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({content: text})
+    });
+    loadSkillList();
+    addLog(now(),'SKILL',`Skill uploaded: ${file.name}`,'OK');
+    return;
+  }
+
+  // Non-MD file — extract text then convert via Claude
+  addLog(now(),'SKILL',`Converting ${file.name} to Markdown...`,'INFO');
+  const rawText = await extractFileText(file);
+  if(!rawText.trim()) {
+    alert('Could not extract text from this file. Please try a different format.');
+    return;
+  }
+
+  const converted = await convertToSkillMarkdown(rawText, file.name);
+  if(!converted) return;
+
+  // Show preview in the new skill editor
+  document.getElementById('new-sk-name').value = baseName;
+  document.getElementById('new-sk-content').value = converted;
+  document.getElementById('new-sk-ed').classList.add('open');
+  addLog(now(),'SKILL',`Converted ${file.name} → preview ready. Review and save.`,'OK');
 }
 
 function selectVoice(el) {
@@ -908,17 +1032,141 @@ async function saveNewSkill() {
   addLog(now(),'SKILL',`New skill created: ${name}`,'OK');
 }
 
+async function extractFileText(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(['md','txt','html','csv','rtf'].includes(ext)) {
+    return await file.text();
+  }
+  if(ext === 'docx') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async e => {
+        try {
+          const mammoth = await import('https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js');
+          const result = await mammoth.extractRawValue({arrayBuffer: e.target.result});
+          resolve(result.value);
+        } catch(err) {
+          // Fallback: just read as text
+          resolve(await file.text().catch(() => ''));
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+  if(ext === 'pdf') {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async e => {
+        try {
+          const pdfjsLib = window['pdfjs-dist/build/pdf'];
+          if(!pdfjsLib) { resolve(await file.text().catch(() => '')); return; }
+          const pdf = await pdfjsLib.getDocument({data: e.target.result}).promise;
+          let text = '';
+          for(let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(s => s.str).join(' ') + '\n';
+          }
+          resolve(text);
+        } catch(err) { resolve(''); }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+  return await file.text().catch(() => '');
+}
+
+async function convertToSkillMarkdown(rawText, filename) {
+  const statusEl = document.getElementById('upload-status');
+  if(statusEl) { statusEl.textContent = 'Converting with Claude...'; statusEl.style.color='#BA7517'; }
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        messages: [{
+          role: 'user',
+          content: `Convert the following document into a structured Markdown skill file for an AI IT helpdesk agent.
+
+Use this exact format:
+# Skill: [Descriptive Name]
+
+## Triggers
+[comma-separated keywords that should activate this skill]
+
+## Overview
+[1-2 sentence summary of what this skill covers]
+
+## Diagnosis Steps
+1. [First question/step]
+2. [Second question/step]
+...
+
+## Common Fixes
+[List of fixes with brief explanations]
+
+## Escalation Triggers
+[When to escalate to a human]
+
+## Ticket Template
+[Brief template for logging the ticket]
+
+Document to convert:
+---
+${rawText.slice(0, 4000)}
+---
+
+Return ONLY the Markdown content, no preamble or explanation.`
+        }]
+      })
+    });
+    const data = await res.json();
+    const md = data?.content?.[0]?.text || '';
+    if(statusEl) { statusEl.textContent = ''; }
+    return md;
+  } catch(e) {
+    if(statusEl) { statusEl.textContent = 'Conversion failed: ' + e.message; statusEl.style.color='#E24B4A'; }
+    return '';
+  }
+}
+
 async function uploadSkill(input) {
   const file = input.files[0];
   if(!file) return;
-  const content = await file.text();
-  await fetch(`${BASE}/api/skills/${file.name}`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({content})
-  });
   input.value = '';
-  loadSkillList();
-  addLog(now(),'SKILL',`Skill uploaded: ${file.name}`,'OK');
+  const ext = file.name.split('.').pop().toLowerCase();
+  const baseName = file.name.replace(/\.[^.]+$/, '') + '.md';
+
+  if(ext === 'md') {
+    // Direct upload — no conversion needed
+    const text = await file.text();
+    await fetch(`${BASE}/api/skills/${file.name}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({content: text})
+    });
+    loadSkillList();
+    addLog(now(),'SKILL',`Skill uploaded: ${file.name}`,'OK');
+    return;
+  }
+
+  // Non-MD file — extract text then convert via Claude
+  addLog(now(),'SKILL',`Converting ${file.name} to Markdown...`,'INFO');
+  const rawText = await extractFileText(file);
+  if(!rawText.trim()) {
+    alert('Could not extract text from this file. Please try a different format.');
+    return;
+  }
+
+  const converted = await convertToSkillMarkdown(rawText, file.name);
+  if(!converted) return;
+
+  // Show preview in the new skill editor
+  document.getElementById('new-sk-name').value = baseName;
+  document.getElementById('new-sk-content').value = converted;
+  document.getElementById('new-sk-ed').classList.add('open');
+  addLog(now(),'SKILL',`Converted ${file.name} → preview ready. Review and save.`,'OK');
 }
 
 function selectVoice(el) {
