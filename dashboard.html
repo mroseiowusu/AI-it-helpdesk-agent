@@ -25,7 +25,7 @@
   .metric-l { font-size: 11px; color: #888; margin-top: 3px; }
   .card { background: white; border-radius: 10px; border: 0.5px solid #e8e8e8; overflow: hidden; }
   .card-title { font-size: 11px; font-weight: 600; color: #666; padding: 12px 14px; border-bottom: 0.5px solid #f0f0f0; }
-  .ticket-row { display: grid; grid-template-columns: 10px 1fr 70px 80px 80px; gap: 10px; padding: 9px 14px; border-bottom: 0.5px solid #f5f5f5; align-items: center; font-size: 12px; }
+  .ticket-row { display: grid; grid-template-columns: 10px 1fr 110px 80px 80px 130px; gap: 10px; padding: 9px 14px; border-bottom: 0.5px solid #f5f5f5; align-items: center; font-size: 12px; }
   .ticket-row:last-child { border-bottom: none; }
   .ticket-head { display: grid; grid-template-columns: 10px 1fr 70px 80px 80px; gap: 10px; padding: 8px 14px; background: #f9f9f9; font-size: 10px; font-weight: 600; color: #888; border-bottom: 0.5px solid #e8e8e8; }
   .pri { width: 8px; height: 8px; border-radius: 50%; }
@@ -154,7 +154,14 @@
     <div class="metric"><div class="metric-n" id="m-rate">—</div><div class="metric-l">Resolution rate</div></div>
   </div>
   <div class="card">
-    <div class="ticket-head"><div></div><div>Issue</div><div>Employee</div><div>Priority</div><div>Status</div></div>
+    <div class="ticket-head" style="grid-template-columns:10px 1fr 110px 80px 80px 130px">
+    <div></div>
+    <div style="cursor:pointer" onclick="sortTickets('title')">Issue ↕</div>
+    <div style="cursor:pointer" onclick="sortTickets('employee')">Employee ↕</div>
+    <div style="cursor:pointer" onclick="sortTickets('priority')">Priority ↕</div>
+    <div style="cursor:pointer" onclick="sortTickets('status')">Status ↕</div>
+    <div style="cursor:pointer" onclick="sortTickets('date')">Created ↕</div>
+  </div>
     <div id="ticket-list"><div style="padding:20px;text-align:center;color:#aaa">Loading tickets from Linear...</div></div>
   </div>
 </div>
@@ -396,15 +403,32 @@ async function loadLinearTickets() {
     const pColors = {0:'#aaa',1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
     const pNames = {0:'None',1:'Urgent',2:'High',3:'Medium',4:'Low'};
     const pClass = {0:'b-open',1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
+    // Parse employee from title e.g. "Issue — EMP001 Alice Johnson — details"
+    const parseEmp = title => {
+      const m = title.match(/EMP\d+\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+      return m ? m[1] : (title.match(/EMP(\d+)/) ? 'EMP'+title.match(/EMP(\d+)/)[1] : '—');
+    };
+    const fmtDate = iso => {
+      if(!iso) return '—';
+      const d = new Date(iso);
+      const now = new Date();
+      const diff = Math.floor((now - d) / 86400000);
+      if(diff === 0) return 'Today ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      if(diff === 1) return 'Yesterday';
+      if(diff < 7) return diff + ' days ago';
+      return d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    };
     const rows = issues.map(i => `
       <div class="ticket-row">
         <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
         <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
-        <div style="font-size:11px;color:#888">${i.identifier}</div>
+        <div style="font-size:11px;color:#555;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${parseEmp(i.title)}</div>
         <div><span class="badge" style="background:${pColors[i.priority]||'#aaa'}22;color:${pColors[i.priority]||'#aaa'}">${pNames[i.priority]||'—'}</span></div>
         <div><span class="badge ${pClass[i.priority]||'b-open'}">${i.state?.name||'—'}</span></div>
+        <div style="font-size:10px;color:#888">${fmtDate(i.createdAt)}</div>
       </div>`).join('');
-    if(el('ticket-list')) el('ticket-list').innerHTML = rows || '<div style="padding:20px;text-align:center;color:#aaa">No tickets found</div>';
+    _allIssues = issues;
+    renderTicketRows(issues);
   } catch(e) {
     console.error('Tickets error:', e);
     const tl = document.getElementById('ticket-list');
@@ -632,6 +656,67 @@ async function loadAnalytics() {
   } catch(e) { console.error('Analytics error:',e); }
 }
 
+let _allIssues = [];
+let _sortKey = 'date';
+let _sortAsc = false;
+
+function sortTickets(key) {
+  if(_sortKey === key) { _sortAsc = !_sortAsc; } else { _sortKey = key; _sortAsc = true; }
+  const sorted = [..._allIssues].sort((a, b) => {
+    let va, vb;
+    if(key === 'title') { va = a.title; vb = b.title; }
+    else if(key === 'priority') { va = a.priority; vb = b.priority; }
+    else if(key === 'status') { va = a.state?.name||''; vb = b.state?.name||''; }
+    else if(key === 'date') { va = a.createdAt; vb = b.createdAt; }
+    else if(key === 'employee') {
+      const parseEmp = t => { const m = t.match(/EMP\d+\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/); return m?m[1]:''; };
+      va = parseEmp(a.title); vb = parseEmp(b.title);
+    }
+    if(va < vb) return _sortAsc ? -1 : 1;
+    if(va > vb) return _sortAsc ? 1 : -1;
+    return 0;
+  });
+  renderTicketRows(sorted);
+  // Update header arrows
+  document.querySelectorAll('.ticket-head div[onclick]').forEach(el => {
+    el.textContent = el.textContent.replace(' ↑','').replace(' ↓','');
+    if(el.getAttribute('onclick').includes(`'${key}'`)) {
+      el.textContent += _sortAsc ? ' ↑' : ' ↓';
+    }
+  });
+}
+
+function renderTicketRows(issues) {
+  const pColors = {0:'#aaa',1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
+  const pNames = {0:'None',1:'Urgent',2:'High',3:'Medium',4:'Low'};
+  const pClass = {0:'b-open',1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
+  const parseEmp = title => {
+    const m = title.match(/EMP\d+\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+    return m ? m[1] : (title.match(/EMP(\d+)/) ? 'EMP'+title.match(/EMP(\d+)/)[1] : '—');
+  };
+  const fmtDate = iso => {
+    if(!iso) return '—';
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = Math.floor((now - d) / 86400000);
+    if(diff === 0) return 'Today ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    if(diff === 1) return 'Yesterday';
+    if(diff < 7) return diff + ' days ago';
+    return d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  };
+  const rows = issues.map(i => `
+    <div class="ticket-row">
+      <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
+      <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
+      <div style="font-size:11px;color:#555;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${parseEmp(i.title)}</div>
+      <div><span class="badge" style="background:${pColors[i.priority]||'#aaa'}22;color:${pColors[i.priority]||'#aaa'}">${pNames[i.priority]||'—'}</span></div>
+      <div><span class="badge ${pClass[i.priority]||'b-open'}">${i.state?.name||'—'}</span></div>
+      <div style="font-size:10px;color:#888">${fmtDate(i.createdAt)}</div>
+    </div>`).join('');
+  const tl = document.getElementById('ticket-list');
+  if(tl) tl.innerHTML = rows || '<div style="padding:20px;text-align:center;color:#aaa">No tickets found</div>';
+}
+
 async function loadAdminData() {
   try {
     const data = await (await fetch(`${BASE}/api/health`)).json();
@@ -847,6 +932,67 @@ async function loadStats() {
     if(t) t.textContent = data.calls_total;
     if(d) d.textContent = data.calls_today;
   } catch(e) {}
+}
+
+let _allIssues = [];
+let _sortKey = 'date';
+let _sortAsc = false;
+
+function sortTickets(key) {
+  if(_sortKey === key) { _sortAsc = !_sortAsc; } else { _sortKey = key; _sortAsc = true; }
+  const sorted = [..._allIssues].sort((a, b) => {
+    let va, vb;
+    if(key === 'title') { va = a.title; vb = b.title; }
+    else if(key === 'priority') { va = a.priority; vb = b.priority; }
+    else if(key === 'status') { va = a.state?.name||''; vb = b.state?.name||''; }
+    else if(key === 'date') { va = a.createdAt; vb = b.createdAt; }
+    else if(key === 'employee') {
+      const parseEmp = t => { const m = t.match(/EMP\d+\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/); return m?m[1]:''; };
+      va = parseEmp(a.title); vb = parseEmp(b.title);
+    }
+    if(va < vb) return _sortAsc ? -1 : 1;
+    if(va > vb) return _sortAsc ? 1 : -1;
+    return 0;
+  });
+  renderTicketRows(sorted);
+  // Update header arrows
+  document.querySelectorAll('.ticket-head div[onclick]').forEach(el => {
+    el.textContent = el.textContent.replace(' ↑','').replace(' ↓','');
+    if(el.getAttribute('onclick').includes(`'${key}'`)) {
+      el.textContent += _sortAsc ? ' ↑' : ' ↓';
+    }
+  });
+}
+
+function renderTicketRows(issues) {
+  const pColors = {0:'#aaa',1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
+  const pNames = {0:'None',1:'Urgent',2:'High',3:'Medium',4:'Low'};
+  const pClass = {0:'b-open',1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
+  const parseEmp = title => {
+    const m = title.match(/EMP\d+\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+    return m ? m[1] : (title.match(/EMP(\d+)/) ? 'EMP'+title.match(/EMP(\d+)/)[1] : '—');
+  };
+  const fmtDate = iso => {
+    if(!iso) return '—';
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = Math.floor((now - d) / 86400000);
+    if(diff === 0) return 'Today ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    if(diff === 1) return 'Yesterday';
+    if(diff < 7) return diff + ' days ago';
+    return d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  };
+  const rows = issues.map(i => `
+    <div class="ticket-row">
+      <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
+      <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
+      <div style="font-size:11px;color:#555;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${parseEmp(i.title)}</div>
+      <div><span class="badge" style="background:${pColors[i.priority]||'#aaa'}22;color:${pColors[i.priority]||'#aaa'}">${pNames[i.priority]||'—'}</span></div>
+      <div><span class="badge ${pClass[i.priority]||'b-open'}">${i.state?.name||'—'}</span></div>
+      <div style="font-size:10px;color:#888">${fmtDate(i.createdAt)}</div>
+    </div>`).join('');
+  const tl = document.getElementById('ticket-list');
+  if(tl) tl.innerHTML = rows || '<div style="padding:20px;text-align:center;color:#aaa">No tickets found</div>';
 }
 
 async function loadAdminData() {
