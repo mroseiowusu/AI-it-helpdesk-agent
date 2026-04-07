@@ -284,7 +284,7 @@ async def get_tickets():
 @app.get("/api/health")
 async def health_check():
     """Real health check — pings all connected services and returns live status."""
-    import requests as req
+    import json as _jh, urllib.request as _uh
     results = {}
 
     # Twilio
@@ -348,13 +348,13 @@ async def health_check():
 
 @app.post("/api/tickets/{ticket_id}/close")
 async def close_ticket(ticket_id: str):
-    import requests as req
+    import json as _jc, urllib.request as _uc
     key = os.environ.get("LINEAR_API_KEY", "")
     # First get workflow states to find cancelled state
-    states_r = req.post("https://api.linear.app/graphql",
-        json={"query": '{ workflowStates(filter:{team:{id:{eq:"5a834841-6f92-435f-bad9-4221bf3385ea"}}}){nodes{id name type}}}'},
-        headers={"Authorization": key, "Content-Type": "application/json"}, timeout=10)
-    states = states_r.json()["data"]["workflowStates"]["nodes"]
+    _sr = _uc.Request("https://api.linear.app/graphql",
+        data=_jc.dumps({"query": '{ workflowStates(filter:{team:{id:{eq:"5a834841-6f92-435f-bad9-4221bf3385ea"}}}){nodes{id name type}}}'}).encode(),
+        headers={"Authorization": key, "Content-Type": "application/json"}, method="POST")
+    states = _jc.loads(_uc.urlopen(_sr, timeout=10).read())["data"]["workflowStates"]["nodes"]
     target = next((s for s in states if s["type"] == "cancelled"), None) or              next((s for s in states if s["type"] == "completed"), None)
     if not target:
         return {"error": "No done/cancelled state found"}
