@@ -469,14 +469,27 @@ const empNames = {EMP001:'Alice Johnson',EMP002:'Bob Smith',EMP003:'Carol White'
 
 let _editingSkill = null;
 
+async function quickDeleteSkill(name) {
+  if(!confirm(`Delete ${name}? This cannot be undone.`)) return;
+  const res = await fetch(`${BASE}/api/skills/${name}`, {method:'DELETE'});
+  const data = await res.json();
+  if(data.status === 'ok') {
+    loadSkillList();
+    addLog(now(),'SKILL',`Skill deleted: ${name}`,'WARN');
+  } else {
+    alert('Delete failed: ' + JSON.stringify(data));
+  }
+}
+
 async function loadSkillList() {
   try {
     const data = await (await fetch(`${BASE}/api/skills`)).json();
     const html = (data.skills || []).map(s => `
-      <div class="skill-r" style="cursor:pointer" onclick="editSkill('${s.name}')">
-        <span class="skill-n">${s.name}</span>
-        <div class="skill-track"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
-        <span class="skill-c" style="font-size:9px;color:#3B6D11">${s.lines}L</span>
+      <div class="skill-r" style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:0.5px solid #f5f5f5">
+        <span class="skill-n" style="cursor:pointer;flex:0 0 110px;font-size:11px;color:#333" onclick="editSkill('${s.name}')">${s.name}</span>
+        <div class="skill-track" style="flex:1"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
+        <span style="font-size:9px;color:#3B6D11;min-width:24px">${s.lines}L</span>
+        <button onclick="event.stopPropagation();quickDeleteSkill('${s.name}')" style="font-size:9px;padding:2px 7px;border-radius:4px;border:0.5px solid #E24B4A;background:#fce8e8;color:#A32D2D;cursor:pointer;flex-shrink:0">Delete</button>
       </div>`).join('');
     document.getElementById('skill-list').innerHTML = html || '<div style="color:#aaa;font-size:12px">No skills yet</div>';
   } catch(e) { console.error('Skills error:', e); }
@@ -808,14 +821,27 @@ async function loadHealthData() {
 
 _editingSkill = null;
 
+async function quickDeleteSkill(name) {
+  if(!confirm(`Delete ${name}? This cannot be undone.`)) return;
+  const res = await fetch(`${BASE}/api/skills/${name}`, {method:'DELETE'});
+  const data = await res.json();
+  if(data.status === 'ok') {
+    loadSkillList();
+    addLog(now(),'SKILL',`Skill deleted: ${name}`,'WARN');
+  } else {
+    alert('Delete failed: ' + JSON.stringify(data));
+  }
+}
+
 async function loadSkillList() {
   try {
     const data = await (await fetch(`${BASE}/api/skills`)).json();
     const html = (data.skills || []).map(s => `
-      <div class="skill-r" style="cursor:pointer" onclick="editSkill('${s.name}')">
-        <span class="skill-n">${s.name}</span>
-        <div class="skill-track"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
-        <span class="skill-c" style="font-size:9px;color:#3B6D11">${s.lines}L</span>
+      <div class="skill-r" style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:0.5px solid #f5f5f5">
+        <span class="skill-n" style="cursor:pointer;flex:0 0 110px;font-size:11px;color:#333" onclick="editSkill('${s.name}')">${s.name}</span>
+        <div class="skill-track" style="flex:1"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
+        <span style="font-size:9px;color:#3B6D11;min-width:24px">${s.lines}L</span>
+        <button onclick="event.stopPropagation();quickDeleteSkill('${s.name}')" style="font-size:9px;padding:2px 7px;border-radius:4px;border:0.5px solid #E24B4A;background:#fce8e8;color:#A32D2D;cursor:pointer;flex-shrink:0">Delete</button>
       </div>`).join('');
     document.getElementById('skill-list').innerHTML = html || '<div style="color:#aaa;font-size:12px">No skills yet</div>';
   } catch(e) { console.error('Skills error:', e); }
