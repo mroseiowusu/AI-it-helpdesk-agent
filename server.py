@@ -283,7 +283,6 @@ async def get_tickets():
 @app.get("/api/health")
 async def health_check():
     """Real health check — pings all connected services and returns live status."""
-    import json as _jh, urllib.request as _uh
     results = {}
 
     # Twilio
