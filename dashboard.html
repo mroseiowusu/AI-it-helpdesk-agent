@@ -352,6 +352,13 @@
     <div class="voice-r"><span>WebSocket</span><span id="ws-status" style="font-size:11px;font-family:monospace;color:#888">Connecting...</span></div>
     <div class="voice-r"><span>Linear tickets</span><span id="sys-tickets" style="font-size:11px;font-family:monospace">—</span></div>
     <div class="voice-r"><span>Active calls</span><span id="sys-calls" style="font-size:11px;font-family:monospace">0</span></div>
+        <div class="voice-r" style="margin-top:10px;padding-top:10px;border-top:0.5px solid #f0f0f0">
+          <span style="font-size:11px;color:#444">Keep-alive</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="keepalive-status" style="font-size:10px;color:#aaa">Off</span>
+            <button id="keepalive-btn" onclick="toggleKeepAlive()" style="font-size:10px;padding:3px 12px;border-radius:5px;border:0.5px solid #ddd;background:#f5f5f5;color:#666;cursor:pointer">Enable</button>
+          </div>
+        </div>
   </div>
   <div class="admin-card">
     <div class="admin-title">ITSM backend</div>
