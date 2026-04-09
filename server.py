@@ -11,6 +11,89 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 app = FastAPI(title="IT Helpdesk Voice Agent")
+
+# --- Auth middleware ---
+from fastapi.responses import RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+import hashlib, secrets
+
+DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "helpdesk2024")
+AUTH_TOKEN = hashlib.sha256(DASHBOARD_PASSWORD.encode()).hexdigest()
+_sessions = set()
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # Allow public routes
+        path = request.url.path
+        public = ["/login", "/voice", "/health", "/favicon"]
+        if any(path.startswith(p) for p in public):
+            return await call_next(request)
+        # Check auth cookie
+        token = request.cookies.get("auth_token")
+        if token != AUTH_TOKEN:
+            return RedirectResponse(url="/login", status_code=302)
+        return await call_next(request)
+
+app.add_middleware(AuthMiddleware)
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(error: str = ""):
+    return HTMLResponse(content=f"""<!DOCTYPE html>
+<html>
+<head>
+  <title>IT Helpdesk — Login</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * {{ margin:0; padding:0; box-sizing:border-box; }}
+    body {{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:#f5f5f3; display:flex; align-items:center; justify-content:center; min-height:100vh; }}
+    .card {{ background:white; border-radius:14px; padding:40px; width:340px; box-shadow:0 2px 20px rgba(0,0,0,0.08); border:0.5px solid #e8e8e8; }}
+    .logo {{ display:flex; align-items:center; gap:10px; margin-bottom:28px; }}
+    .dot {{ width:10px; height:10px; background:#378ADD; border-radius:50%; }}
+    .title {{ font-size:15px; font-weight:600; color:#111; }}
+    .sub {{ font-size:11px; color:#888; margin-top:1px; }}
+    label {{ font-size:11px; color:#555; font-weight:500; display:block; margin-bottom:5px; }}
+    input {{ width:100%; padding:9px 12px; border:0.5px solid #e0e0e0; border-radius:8px; font-size:13px; outline:none; font-family:inherit; }}
+    input:focus {{ border-color:#378ADD; box-shadow:0 0 0 3px rgba(55,138,221,0.1); }}
+    button {{ width:100%; padding:10px; background:#111; color:white; border:none; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; margin-top:16px; font-family:inherit; }}
+    button:hover {{ background:#333; }}
+    .error {{ background:#fce8e8; color:#A32D2D; font-size:11px; padding:8px 12px; border-radius:6px; margin-bottom:14px; border:0.5px solid #E24B4A; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="dot"></div>
+      <div><div class="title">IT Helpdesk Agent</div><div class="sub">Command Centre</div></div>
+    </div>
+    {"<div class='error'>Incorrect password. Please try again.</div>" if error else ""}
+    <form method="POST" action="/login">
+      <div style="margin-bottom:14px">
+        <label>Password</label>
+        <input type="password" name="password" placeholder="Enter dashboard password" autofocus>
+      </div>
+      <button type="submit">Sign in →</button>
+    </form>
+  </div>
+</body>
+</html>""")
+
+@app.post("/login")
+async def login(request: Request):
+    from fastapi.responses import RedirectResponse
+    form = await request.form()
+    password = form.get("password", "")
+    if hashlib.sha256(password.encode()).hexdigest() == AUTH_TOKEN:
+        response = RedirectResponse(url="/dashboard", status_code=302)
+        response.set_cookie("auth_token", AUTH_TOKEN, httponly=True, max_age=86400*7)
+        return response
+    return RedirectResponse(url="/login?error=1", status_code=302)
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie("auth_token")
+    return response
 sessions: dict[str, dict] = {}
 BASE_URL = os.environ.get("BASE_URL", "")
 OPERATOR_PHONE = os.environ.get("OPERATOR_PHONE", "")
