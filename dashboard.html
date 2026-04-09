@@ -735,6 +735,44 @@ async function loadStats() {
   } catch(e) {}
 }
 
+let _keepAliveInterval = null;
+
+function toggleKeepAlive() {
+  const btn = document.getElementById('keepalive-btn');
+  const status = document.getElementById('keepalive-status');
+  if(_keepAliveInterval) {
+    clearInterval(_keepAliveInterval);
+    _keepAliveInterval = null;
+    btn.textContent = 'Enable';
+    btn.style.background = '#f5f5f5';
+    btn.style.color = '#666';
+    btn.style.borderColor = '#ddd';
+    status.textContent = 'Off';
+    status.style.color = '#aaa';
+    addLog(now(), 'SYS', 'Keep-alive disabled', 'WARN');
+  } else {
+    _keepAliveInterval = setInterval(async () => {
+      try {
+        const r = await fetch(`${BASE}/api/health`);
+        const now_ts = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        status.textContent = 'Last ping: ' + now_ts;
+      } catch(e) {
+        status.textContent = 'Ping failed';
+        status.style.color = '#E24B4A';
+      }
+    }, 4 * 60 * 1000); // every 4 minutes
+    // Ping immediately
+    fetch(`${BASE}/api/health`);
+    btn.textContent = 'Disable';
+    btn.style.background = '#eaf3de';
+    btn.style.color = '#3B6D11';
+    btn.style.borderColor = '#97C459';
+    status.textContent = 'Active — pinging every 4 min';
+    status.style.color = '#3B6D11';
+    addLog(now(), 'SYS', 'Keep-alive enabled — pinging every 4 minutes', 'OK');
+  }
+}
+
 async function loadAnalytics() {
   try {
     const [analyticsRes, ticketsRes] = await Promise.all([
