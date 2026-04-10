@@ -1486,6 +1486,8 @@ function connectWS() {
 
 document.addEventListener('DOMContentLoaded', function() {
   loadLinearTickets();
+  setTimeout(() => { if(_allIssues.length === 0) loadLinearTickets(); }, 3000);
+  setTimeout(() => { if(_allIssues.length === 0) loadLinearTickets(); }, 7000);
   loadHealthData();
   loadAdminData();
   loadSkillList();
