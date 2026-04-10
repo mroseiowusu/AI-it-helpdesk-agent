@@ -383,6 +383,7 @@ let activeCalls = {};
 let selectedCall = null;
 let logFilter = 'all';
 let logs = [];
+let _editingSkill = null;
 
 function showTab(id, el) {
   document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
@@ -655,7 +656,6 @@ async function sendWhisper(sid) {
 
 const empNames = {EMP001:'Alice Johnson',EMP002:'Bob Smith',EMP003:'Carol White',EMP004:'Dave Brown'};
 
-let _editingSkill = null;
 
 function connectWS() {
   const wsUrl = BASE.replace('https://','wss://').replace('http://','ws://') + '/ws/calls';
