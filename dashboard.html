@@ -730,6 +730,100 @@ function connectWS() {
 
 
 
+
+function renderCalls() {
+  const list = document.getElementById('call-list');
+  if(!list) return;
+  const calls = Object.values(activeCalls);
+  document.getElementById('active-count').textContent = calls.length;
+  if(calls.length === 0) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:12px">No active calls</div>';
+    return;
+  }
+  list.innerHTML = calls.map(c => `
+    <div class="call-item ${selectedCall===c.call_sid?'selected':''}" onclick="selectCall('${c.call_sid}')">
+      <div style="font-weight:500;font-size:12px">${c.name||c.emp_id||'Unknown'}</div>
+      <div style="font-size:10px;color:#888">${c.call_sid.slice(0,12)}...</div>
+    </div>`).join('');
+}
+
+function selectCall(sid) {
+  selectedCall = sid;
+  renderCalls();
+}
+
+function addLog(time, source, message, level) {
+  const entry = {time, source, message, level};
+  logs.unshift(entry);
+  if(logs.length > 200) logs.pop();
+  const container = document.getElementById('log-container');
+  if(!container) return;
+  const colors = {OK:'#3B6D11',ERR:'#A32D2D',WARN:'#854F0B',INFO:'#185FA5',SYS:'#555'};
+  const row = document.createElement('div');
+  row.className = 'log-row';
+  row.innerHTML = `<span class="log-time">${time}</span><span class="log-src" style="color:${colors[level]||'#555'}">${source}</span><span class="log-msg">${message}</span>`;
+  if(logFilter === 'all' || logFilter === source.toLowerCase()) container.prepend(row);
+}
+
+function now() {
+  return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch(`${BASE}/api/stats`);
+    const data = await res.json();
+    const el = id => document.getElementById(id);
+    if(el('stat-total')) el('stat-total').textContent = data.total_calls||0;
+    if(el('stat-today')) el('stat-today').textContent = data.today||0;
+  } catch(e) {}
+}
+
+async function loadAnalytics() {
+  try {
+    const [analyticsRes, ticketsRes] = await Promise.all([
+      fetch(`${BASE}/api/analytics`),
+      fetch(`${BASE}/api/tickets`)
+    ]);
+    const analytics = await analyticsRes.json();
+    const tickets = await ticketsRes.json();
+    const issues = tickets?.data?.issues?.nodes || [];
+    const el = id => document.getElementById(id);
+    if(el('a-total-calls')) el('a-total-calls').textContent = analytics.total_calls||0;
+    if(el('a-total-tickets')) el('a-total-tickets').textContent = issues.length;
+    if(el('a-avg-dur')) { const s=analytics.avg_duration_seconds||0; el('a-avg-dur').textContent=s>0?Math.floor(s/60)+'m':'—'; }
+    const chartEl = el('call-chart');
+    const labelsEl = el('call-chart-labels');
+    if(chartEl && analytics.daily) {
+      const max = Math.max(...analytics.daily.map(d=>d.calls),1);
+      chartEl.innerHTML = analytics.daily.map(d=>`<div title="${d.date.slice(5)}: ${d.calls}" style="flex:1;height:${Math.max(4,Math.round((d.calls/max)*76))}px;background:${d.calls>0?'#378ADD':'#e8e8e8'};border-radius:2px 2px 0 0;min-width:0"></div>`).join('');
+      if(labelsEl) labelsEl.innerHTML = analytics.daily.map((d,i)=>`<div style="flex:1;font-size:8px;color:#aaa;text-align:center;min-width:0">${i===0||i===6||i===13?d.date.slice(5):''}</div>`).join('');
+    }
+    const statusEl = el('status-chart');
+    if(statusEl) {
+      const total = analytics.statuses?.reduce((s,r)=>s+r.cnt,0)||1;
+      const colors = {resolved:'#3B6D11',escalated:'#E24B4A',completed:'#378ADD'};
+      statusEl.innerHTML = analytics.statuses?.length>0
+        ? analytics.statuses.map(r=>`<div style="display:flex;align-items:center;gap:8px;font-size:11px"><span style="width:70px;color:#666;text-transform:capitalize">${r.status}</span><div style="flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden"><div style="width:${Math.round((r.cnt/total)*100)}%;height:100%;background:${colors[r.status]||'#378ADD'};border-radius:4px"></div></div><span style="width:24px;text-align:right;color:#888">${r.cnt}</span></div>`).join('')
+        : '<div style="color:#aaa;font-size:11px;text-align:center;padding:20px 0">No calls logged yet — make a test call!</div>';
+    }
+    const skillEl = el('skill-chart');
+    if(skillEl) {
+      const maxS = Math.max(...(analytics.skills||[]).map(s=>s.cnt),1);
+      skillEl.innerHTML = analytics.skills?.length>0
+        ? analytics.skills.map(s=>`<div style="display:flex;align-items:center;gap:8px;font-size:11px"><span style="width:100px;color:#444;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${s.skill_matched}</span><div style="flex:1;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden"><div style="width:${Math.round((s.cnt/maxS)*100)}%;height:100%;background:#7F77DD;border-radius:3px"></div></div><span style="width:18px;text-align:right;color:#888">${s.cnt}</span></div>`).join('')
+        : '<div style="color:#aaa;font-size:11px;text-align:center;padding:20px 0">No skill matches yet</div>';
+    }
+    const catEl = el('analytics-content');
+    if(catEl && issues.length>0) {
+      const cats={};
+      issues.forEach(i=>{const t=i.title.toLowerCase();const cat=t.includes('vpn')?'VPN':t.includes('slow')||t.includes('cpu')?'Slow PC':t.includes('outlook')||t.includes('email')?'Outlook':t.includes('wifi')||t.includes('wi-fi')?'Wi-Fi':t.includes('print')?'Printer':t.includes('password')||t.includes('locked')?'Password':t.includes('drive')||t.includes('disk')?'Hardware':'Other';cats[cat]=(cats[cat]||0)+1;});
+      const maxC=Math.max(...Object.values(cats),1);
+      catEl.innerHTML=Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([cat,count])=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #f5f5f5;font-size:11px"><span style="width:80px;color:#444">${cat}</span><div style="flex:1;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden"><div style="width:${Math.round((count/maxC)*100)}%;height:100%;background:#378ADD;border-radius:3px"></div></div><span style="width:18px;text-align:right;color:#888">${count}</span></div>`).join('');
+    }
+  } catch(e) { console.error('Analytics error:',e); }
+}
+
 setTimeout(loadLinearTickets, 500);
 // Retry every 2s for 20s if tickets haven't loaded (handles Railway cold start)
 let _ltRetries = 0;
