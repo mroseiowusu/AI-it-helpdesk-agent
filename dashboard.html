@@ -372,6 +372,10 @@
 </div>
 
 <script>
+let _allIssues = [];
+let _sortKey = 'date';
+let _sortAsc = false;
+
 const BASE = 'https://web-production-789692.up.railway.app';
 const LINEAR_KEY = 'YOUR_LINEAR_API_KEY_HERE';
 const TEAM_ID = '5a834841-6f92-435f-bad9-4221bf3385ea';
@@ -1016,9 +1020,7 @@ async function loadAnalytics() {
   } catch(e) { console.error('Analytics error:',e); }
 }
 
-let _allIssues = [];
-let _sortKey = 'date';
-let _sortAsc = false;
+// _allIssues, _sortKey, _sortAsc declared at top
 
 function sortTickets(key) {
   if(_sortKey === key) { _sortAsc = !_sortAsc; } else { _sortKey = key; _sortAsc = true; }
