@@ -1484,9 +1484,9 @@ function connectWS() {
   generateUptime('uptime-'+s, s==='ssh'?0:s==='claude'?95:100);
 });
 
-loadLinearTickets();
+setTimeout(loadLinearTickets, 500);
 setTimeout(() => { if(_allIssues.length === 0) loadLinearTickets(); }, 3000);
-setTimeout(() => { if(_allIssues.length === 0) loadLinearTickets(); }, 7000);
+setTimeout(() => { if(_allIssues.length === 0) loadLinearTickets(); }, 8000);
 loadHealthData();
 loadAdminData();
 loadSkillList();
