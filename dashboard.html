@@ -1487,9 +1487,10 @@ function connectWS() {
 setTimeout(loadLinearTickets, 500);
 // Retry every 2s for 20s if tickets haven't loaded (handles Railway cold start)
 let _ltRetries = 0;
-const _ltRetry = setInterval(() => {
+let _ltRetry = null;
+_ltRetry = setInterval(() => {
   _ltRetries++;
-  if(_allIssues.length > 0 || _ltRetries > 10) { clearInterval(_ltRetry); return; }
+  if(_allIssues.length > 0 || _ltRetries > 10) { clearInterval(_ltRetry); _ltRetry = null; return; }
   loadLinearTickets();
 }, 2000);
 loadHealthData();
