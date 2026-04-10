@@ -389,6 +389,183 @@ function showTab(id, el) {
 
 function fmt(n) { return n !== undefined ? n : '—'; }
 
+function renderTicketRows(issues) {
+  const pColors = {0:'#aaa',1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
+  const pNames = {0:'None',1:'Urgent',2:'High',3:'Medium',4:'Low'};
+  const pClass = {0:'b-open',1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
+  const parseEmp = title => {
+    const m = title.match(/EMP\d+\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+    return m ? m[1] : (title.match(/EMP(\d+)/) ? 'EMP'+title.match(/EMP(\d+)/)[1] : '—');
+  };
+  const fmtDate = iso => {
+    if(!iso) return '—';
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = Math.floor((now - d) / 86400000);
+    if(diff === 0) return 'Today ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    if(diff === 1) return 'Yesterday';
+    if(diff < 7) return diff + ' days ago';
+    return d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  };
+  const rows = issues.map(i => `
+    <div class="ticket-row">
+      <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
+      <div style="font-size:10px;color:#888;font-family:monospace">${i.identifier}</div>
+      <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
+      <div style="font-size:11px;color:#555;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${parseEmp(i.title)}</div>
+      <div><span class="badge" style="background:${pColors[i.priority]||'#aaa'}22;color:${pColors[i.priority]||'#aaa'}">${pNames[i.priority]||'—'}</span></div>
+      <div><span class="badge ${pClass[i.priority]||'b-open'}">${i.state?.name||'—'}</span></div>
+      <div style="font-size:10px;color:#888">${fmtDate(i.createdAt)}</div>
+    </div>`).join('');
+  const tl = document.getElementById('ticket-list');
+  if(tl) tl.innerHTML = rows || '<div style="padding:20px;text-align:center;color:#aaa">No tickets found</div>';
+}
+
+async function loadAdminData() {
+  try {
+    const data = await (await fetch(`${BASE}/api/health`)).json();
+    const avatarColors = ['ea-blue','ea-green','ea-amber','ea-purple','ea-blue','ea-green'];
+    const empNames = {
+      EMP001:['Alice Johnson','Engineering · Windows'],
+      EMP002:['Bob Smith','Marketing · Linux'],
+      EMP003:['Carol White','Finance · Windows'],
+      EMP004:['Dave Brown','IT · Linux']
+    };
+    if(data.ssh) {
+      const empHtml = Object.entries(empNames).map(([id,[name,sub]],i) => `
+        <div class="emp-row">
+          <div class="emp-avatar ${avatarColors[i]}">${name.split(' ').map(n=>n[0]).join('')}</div>
+          <div class="emp-info"><div class="emp-name">${name}</div><div class="emp-sub">${id} · ${sub}</div></div>
+          <span class="badge b-warn">SSH demo</span>
+        </div>`).join('');
+      document.getElementById('emp-list').innerHTML = empHtml;
+    }
+    if(data.skills) {
+      const skillHtml = data.skills.files.map(f => `
+        <div class="skill-r">
+          <span class="skill-n">${f}</span>
+          <div class="skill-track"><div class="skill-fill" style="width:70%"></div></div>
+          <span class="skill-c v-active" style="font-size:9px;padding:1px 5px;border-radius:10px">Live</span>
+        </div>`).join('');
+      document.getElementById('skill-list').innerHTML = skillHtml;
+    }
+    if(data.twilio) {
+      const el = document.getElementById('sys-twilio');
+      if(el) el.textContent = data.twilio.status==='ok' ? '✓ '+data.twilio.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.twilio.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.anthropic) {
+      const el = document.getElementById('sys-anthropic');
+      if(el) el.textContent = data.anthropic.status==='ok' ? '✓ '+data.anthropic.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.anthropic.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    if(data.linear) {
+      const el = document.getElementById('sys-linear');
+      if(el) el.textContent = data.linear.status==='ok' ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
+      if(el) el.style.color = data.linear.status==='ok' ? '#3B6D11' : '#A32D2D';
+    }
+    const callsEl = document.getElementById('sys-calls');
+    if(callsEl) callsEl.textContent = Object.keys(activeCalls).length;
+  } catch(e) {
+    console.error('Admin data error:', e);
+  }
+}
+
+async function hangupCall(sid) {
+  if(!confirm('Hang up this call?')) return;
+  try {
+    await fetch(`${BASE}/dashboard/hangup/${sid}`, {method:'POST'});
+    addLog(now(),'SYS',`Call ${sid.slice(0,8)}... hung up from dashboard`,'WARN');
+  } catch(e) { alert('Hangup failed: ' + e.message); }
+}
+
+async function loadHealthData() {
+  try {
+    const res = await fetch(`${BASE}/api/health`);
+    const data = await res.json();
+    const map = {
+      twilio: {dot:'ad-ok', val:'status'},
+      anthropic: {dot:'claude-dot', val:'latency_ms'},
+      linear: {dot:'linear-dot', val:'latency_ms'},
+      ssh: {dot:null, val:'machines'},
+      railway: {dot:null, val:'region'},
+      skills: {dot:null, val:'count'}
+    };
+    if(data.anthropic) {
+      const ok = data.anthropic.status==='ok';
+      document.getElementById('claude-dot').style.background = ok?'#3B6D11':'#E24B4A';
+      document.getElementById('claude-latency').textContent = ok ? data.anthropic.latency_ms+'ms' : 'Error';
+    }
+    if(data.linear) {
+      const ok = data.linear.status==='ok';
+      document.getElementById('linear-dot').style.background = ok?'#3B6D11':'#E24B4A';
+      document.getElementById('linear-count').textContent = ok ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
+    }
+    addLog(now(),'SYS','API health check completed','OK');
+  } catch(e) {
+    addLog(now(),'SYS','Health check failed: '+e.message,'ERR');
+  }
+}
+
+_editingSkill = null;
+
+async function quickDeleteSkill(name) {
+  if(!confirm(`Delete ${name}? This cannot be undone.`)) return;
+  const res = await fetch(`${BASE}/api/skills/${name}`, {method:'DELETE'});
+  const data = await res.json();
+  if(data.status === 'ok') {
+    loadSkillList();
+    addLog(now(),'SKILL',`Skill deleted: ${name}`,'WARN');
+  } else {
+    alert('Delete failed: ' + JSON.stringify(data));
+  }
+}
+
+async function loadSkillList() {
+  try {
+    const data = await (await fetch(`${BASE}/api/skills`)).json();
+    const html = (data.skills || []).map(s => `
+      <div class="skill-r" style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:0.5px solid #f5f5f5">
+        <span class="skill-n" style="cursor:pointer;flex:0 0 110px;font-size:11px;color:#333" onclick="editSkill('${s.name}')">${s.name}</span>
+        <div class="skill-track" style="flex:1"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
+        <span style="font-size:9px;color:#3B6D11;min-width:24px">${s.lines}L</span>
+        <button onclick="event.stopPropagation();quickDeleteSkill('${s.name}')" style="font-size:9px;padding:2px 7px;border-radius:4px;border:0.5px solid #E24B4A;background:#fce8e8;color:#A32D2D;cursor:pointer;flex-shrink:0">Delete</button>
+      </div>`).join('');
+    document.getElementById('skill-list').innerHTML = html || '<div style="color:#aaa;font-size:12px">No skills yet</div>';
+  } catch(e) { console.error('Skills error:', e); }
+}
+
+async function editSkill(name) {
+  _editingSkill = name;
+  const data = await (await fetch(`${BASE}/api/skills/${name}`)).json();
+  document.getElementById('edit-skill-title').textContent = 'Editing: ' + name;
+  document.getElementById('edit-skill-content').value = data.content || '';
+  document.getElementById('edit-skill-editor').classList.add('open');
+  document.getElementById('new-skill-editor').classList.remove('open');
+}
+
+async function saveEditSkill() {
+  if(!_editingSkill) return;
+  const content = document.getElementById('edit-skill-content').value;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill updated: ${_editingSkill}`,'OK');
+}
+
+async function deleteSkill() {
+  if(!_editingSkill) return;
+  if(!confirm(`Delete ${_editingSkill}? This cannot be undone.`)) return;
+  await fetch(`${BASE}/api/skills/${_editingSkill}`, {method:'DELETE'});
+  hideEditSkill();
+  loadSkillList();
+  addLog(now(),'SKILL',`Skill deleted: ${_editingSkill}`,'WARN');
+}
+
+
 async function loadLinearTickets() {
   try {
     const res = await fetch(`${BASE}/api/tickets`);
@@ -870,181 +1047,6 @@ function sortTickets(key) {
   });
 }
 
-function renderTicketRows(issues) {
-  const pColors = {0:'#aaa',1:'#E24B4A',2:'#BA7517',3:'#378ADD',4:'#639922'};
-  const pNames = {0:'None',1:'Urgent',2:'High',3:'Medium',4:'Low'};
-  const pClass = {0:'b-open',1:'b-esc',2:'b-warn',3:'b-open',4:'b-res'};
-  const parseEmp = title => {
-    const m = title.match(/EMP\d+\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
-    return m ? m[1] : (title.match(/EMP(\d+)/) ? 'EMP'+title.match(/EMP(\d+)/)[1] : '—');
-  };
-  const fmtDate = iso => {
-    if(!iso) return '—';
-    const d = new Date(iso);
-    const now = new Date();
-    const diff = Math.floor((now - d) / 86400000);
-    if(diff === 0) return 'Today ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-    if(diff === 1) return 'Yesterday';
-    if(diff < 7) return diff + ' days ago';
-    return d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  };
-  const rows = issues.map(i => `
-    <div class="ticket-row">
-      <div class="pri" style="background:${pColors[i.priority]||'#aaa'}"></div>
-      <div style="font-size:10px;color:#888;font-family:monospace">${i.identifier}</div>
-      <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px">${i.title}</div>
-      <div style="font-size:11px;color:#555;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${parseEmp(i.title)}</div>
-      <div><span class="badge" style="background:${pColors[i.priority]||'#aaa'}22;color:${pColors[i.priority]||'#aaa'}">${pNames[i.priority]||'—'}</span></div>
-      <div><span class="badge ${pClass[i.priority]||'b-open'}">${i.state?.name||'—'}</span></div>
-      <div style="font-size:10px;color:#888">${fmtDate(i.createdAt)}</div>
-    </div>`).join('');
-  const tl = document.getElementById('ticket-list');
-  if(tl) tl.innerHTML = rows || '<div style="padding:20px;text-align:center;color:#aaa">No tickets found</div>';
-}
-
-async function loadAdminData() {
-  try {
-    const data = await (await fetch(`${BASE}/api/health`)).json();
-    const avatarColors = ['ea-blue','ea-green','ea-amber','ea-purple','ea-blue','ea-green'];
-    const empNames = {
-      EMP001:['Alice Johnson','Engineering · Windows'],
-      EMP002:['Bob Smith','Marketing · Linux'],
-      EMP003:['Carol White','Finance · Windows'],
-      EMP004:['Dave Brown','IT · Linux']
-    };
-    if(data.ssh) {
-      const empHtml = Object.entries(empNames).map(([id,[name,sub]],i) => `
-        <div class="emp-row">
-          <div class="emp-avatar ${avatarColors[i]}">${name.split(' ').map(n=>n[0]).join('')}</div>
-          <div class="emp-info"><div class="emp-name">${name}</div><div class="emp-sub">${id} · ${sub}</div></div>
-          <span class="badge b-warn">SSH demo</span>
-        </div>`).join('');
-      document.getElementById('emp-list').innerHTML = empHtml;
-    }
-    if(data.skills) {
-      const skillHtml = data.skills.files.map(f => `
-        <div class="skill-r">
-          <span class="skill-n">${f}</span>
-          <div class="skill-track"><div class="skill-fill" style="width:70%"></div></div>
-          <span class="skill-c v-active" style="font-size:9px;padding:1px 5px;border-radius:10px">Live</span>
-        </div>`).join('');
-      document.getElementById('skill-list').innerHTML = skillHtml;
-    }
-    if(data.twilio) {
-      const el = document.getElementById('sys-twilio');
-      if(el) el.textContent = data.twilio.status==='ok' ? '✓ '+data.twilio.latency_ms+'ms' : 'Error';
-      if(el) el.style.color = data.twilio.status==='ok' ? '#3B6D11' : '#A32D2D';
-    }
-    if(data.anthropic) {
-      const el = document.getElementById('sys-anthropic');
-      if(el) el.textContent = data.anthropic.status==='ok' ? '✓ '+data.anthropic.latency_ms+'ms' : 'Error';
-      if(el) el.style.color = data.anthropic.status==='ok' ? '#3B6D11' : '#A32D2D';
-    }
-    if(data.linear) {
-      const el = document.getElementById('sys-linear');
-      if(el) el.textContent = data.linear.status==='ok' ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
-      if(el) el.style.color = data.linear.status==='ok' ? '#3B6D11' : '#A32D2D';
-    }
-    const callsEl = document.getElementById('sys-calls');
-    if(callsEl) callsEl.textContent = Object.keys(activeCalls).length;
-  } catch(e) {
-    console.error('Admin data error:', e);
-  }
-}
-
-async function hangupCall(sid) {
-  if(!confirm('Hang up this call?')) return;
-  try {
-    await fetch(`${BASE}/dashboard/hangup/${sid}`, {method:'POST'});
-    addLog(now(),'SYS',`Call ${sid.slice(0,8)}... hung up from dashboard`,'WARN');
-  } catch(e) { alert('Hangup failed: ' + e.message); }
-}
-
-async function loadHealthData() {
-  try {
-    const res = await fetch(`${BASE}/api/health`);
-    const data = await res.json();
-    const map = {
-      twilio: {dot:'ad-ok', val:'status'},
-      anthropic: {dot:'claude-dot', val:'latency_ms'},
-      linear: {dot:'linear-dot', val:'latency_ms'},
-      ssh: {dot:null, val:'machines'},
-      railway: {dot:null, val:'region'},
-      skills: {dot:null, val:'count'}
-    };
-    if(data.anthropic) {
-      const ok = data.anthropic.status==='ok';
-      document.getElementById('claude-dot').style.background = ok?'#3B6D11':'#E24B4A';
-      document.getElementById('claude-latency').textContent = ok ? data.anthropic.latency_ms+'ms' : 'Error';
-    }
-    if(data.linear) {
-      const ok = data.linear.status==='ok';
-      document.getElementById('linear-dot').style.background = ok?'#3B6D11':'#E24B4A';
-      document.getElementById('linear-count').textContent = ok ? '✓ '+data.linear.latency_ms+'ms' : 'Error';
-    }
-    addLog(now(),'SYS','API health check completed','OK');
-  } catch(e) {
-    addLog(now(),'SYS','Health check failed: '+e.message,'ERR');
-  }
-}
-
-_editingSkill = null;
-
-async function quickDeleteSkill(name) {
-  if(!confirm(`Delete ${name}? This cannot be undone.`)) return;
-  const res = await fetch(`${BASE}/api/skills/${name}`, {method:'DELETE'});
-  const data = await res.json();
-  if(data.status === 'ok') {
-    loadSkillList();
-    addLog(now(),'SKILL',`Skill deleted: ${name}`,'WARN');
-  } else {
-    alert('Delete failed: ' + JSON.stringify(data));
-  }
-}
-
-async function loadSkillList() {
-  try {
-    const data = await (await fetch(`${BASE}/api/skills`)).json();
-    const html = (data.skills || []).map(s => `
-      <div class="skill-r" style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:0.5px solid #f5f5f5">
-        <span class="skill-n" style="cursor:pointer;flex:0 0 110px;font-size:11px;color:#333" onclick="editSkill('${s.name}')">${s.name}</span>
-        <div class="skill-track" style="flex:1"><div class="skill-fill" style="width:${Math.min(100,s.lines*3)}%"></div></div>
-        <span style="font-size:9px;color:#3B6D11;min-width:24px">${s.lines}L</span>
-        <button onclick="event.stopPropagation();quickDeleteSkill('${s.name}')" style="font-size:9px;padding:2px 7px;border-radius:4px;border:0.5px solid #E24B4A;background:#fce8e8;color:#A32D2D;cursor:pointer;flex-shrink:0">Delete</button>
-      </div>`).join('');
-    document.getElementById('skill-list').innerHTML = html || '<div style="color:#aaa;font-size:12px">No skills yet</div>';
-  } catch(e) { console.error('Skills error:', e); }
-}
-
-async function editSkill(name) {
-  _editingSkill = name;
-  const data = await (await fetch(`${BASE}/api/skills/${name}`)).json();
-  document.getElementById('edit-skill-title').textContent = 'Editing: ' + name;
-  document.getElementById('edit-skill-content').value = data.content || '';
-  document.getElementById('edit-skill-editor').classList.add('open');
-  document.getElementById('new-skill-editor').classList.remove('open');
-}
-
-async function saveEditSkill() {
-  if(!_editingSkill) return;
-  const content = document.getElementById('edit-skill-content').value;
-  await fetch(`${BASE}/api/skills/${_editingSkill}`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({content})
-  });
-  hideEditSkill();
-  loadSkillList();
-  addLog(now(),'SKILL',`Skill updated: ${_editingSkill}`,'OK');
-}
-
-async function deleteSkill() {
-  if(!_editingSkill) return;
-  if(!confirm(`Delete ${_editingSkill}? This cannot be undone.`)) return;
-  await fetch(`${BASE}/api/skills/${_editingSkill}`, {method:'DELETE'});
-  hideEditSkill();
-  loadSkillList();
-  addLog(now(),'SKILL',`Skill deleted: ${_editingSkill}`,'WARN');
-}
 
 function hideEditSkill() {
   document.getElementById('edit-skill-editor').classList.remove('open');
