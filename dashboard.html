@@ -728,9 +728,7 @@ function connectWS() {
   };
 }
 
-['twilio','claude','linear','ssh','railway','skills'].forEach(s => {
-  generateUptime('uptime-'+s, s==='ssh'?0:s==='claude'?95:100);
-});
+
 
 setTimeout(loadLinearTickets, 500);
 // Retry every 2s for 20s if tickets haven't loaded (handles Railway cold start)
