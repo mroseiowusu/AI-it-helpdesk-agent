@@ -1480,14 +1480,20 @@ function connectWS() {
   generateUptime('uptime-'+s, s==='ssh'?0:s==='claude'?95:100);
 });
 
-loadLinearTickets();
-loadHealthData();
-loadAdminData();
-connectWS();
-loadLinearTickets();
-setInterval(loadLinearTickets, 60000);
-setInterval(loadHealthData, 30000);
-setInterval(loadAdminData, 30000);
+document.addEventListener('DOMContentLoaded', function() {
+  loadLinearTickets();
+  loadHealthData();
+  loadAdminData();
+  loadSkillList();
+  loadStats();
+  loadAnalytics();
+  connectWS();
+  setInterval(loadLinearTickets, 60000);
+  setInterval(loadHealthData, 30000);
+  setInterval(loadAdminData, 30000);
+  setInterval(loadStats, 15000);
+  setInterval(loadAnalytics, 60000);
+});
 </script>
 </body>
 </html>
