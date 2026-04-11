@@ -108,28 +108,22 @@ import sqlite3 as _sqlite3
 from datetime import datetime as _datetime
 
 def _init_analytics_db():
-    conn = _sqlite3.connect('analytics.db')
-    conn.execute('''CREATE TABLE IF NOT EXISTS calls (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        call_sid TEXT,
-        employee_id TEXT,
-        skill_matched TEXT,
-        duration_seconds INTEGER,
-        status TEXT,
-        timestamp TEXT
-    )''')
-    conn.commit()
-    conn.close()
+    pass  # Redis-backed, no init needed
 
 def _log_call(call_sid, employee_id, skill_matched, duration_seconds, status):
     try:
-        conn = _sqlite3.connect('analytics.db')
-        conn.execute(
-            'INSERT INTO calls (call_sid,employee_id,skill_matched,duration_seconds,status,timestamp) VALUES (?,?,?,?,?,?)',
-            (call_sid, employee_id, skill_matched, duration_seconds, status, _datetime.utcnow().isoformat())
-        )
-        conn.commit()
-        conn.close()
+        if not (_USE_REDIS and _redis):
+            return
+        entry = _json_sessions.dumps({
+            "call_sid": call_sid,
+            "employee_id": employee_id,
+            "skill_matched": skill_matched,
+            "duration_seconds": duration_seconds,
+            "status": status,
+            "timestamp": _datetime.utcnow().isoformat()
+        })
+        key = f"call:{_datetime.utcnow().isoformat()}:{call_sid[:8]}"
+        _redis.setex(key, 86400 * 90, entry)  # Keep 90 days
     except Exception as e:
         log.error(f"Analytics log error: {e}")
 
@@ -448,42 +442,52 @@ async def close_ticket(ticket_id: str):
     return _jc.loads(_uc.urlopen(_mr, timeout=10).read())
 @app.get("/api/analytics")
 async def get_analytics():
-    import sqlite3 as sq
+    import json as _ja
     from datetime import datetime, timedelta
     try:
-        conn = sq.connect('analytics.db')
-        conn.row_factory = sq.Row
-        
+        # Load all call records from Redis
+        calls = []
+        if _USE_REDIS and _redis:
+            keys = _redis.keys("call:*")
+            for k in (keys or []):
+                try:
+                    val = _redis.get(k)
+                    if val:
+                        calls.append(_ja.loads(val))
+                except:
+                    pass
+
         # Last 14 days call volume
         days = []
         for i in range(13, -1, -1):
             day = (datetime.utcnow() - timedelta(days=i)).strftime('%Y-%m-%d')
-            row = conn.execute(
-                "SELECT COUNT(*) as cnt FROM calls WHERE timestamp LIKE ?", (day+'%',)
-            ).fetchone()
-            days.append({"date": day, "calls": row["cnt"]})
-        
+            count = sum(1 for c in calls if c.get('timestamp','').startswith(day))
+            days.append({"date": day, "calls": count})
+
         # Skill breakdown
-        skills = conn.execute(
-            "SELECT skill_matched, COUNT(*) as cnt FROM calls GROUP BY skill_matched ORDER BY cnt DESC"
-        ).fetchall()
-        
+        skill_counts = {}
+        for c in calls:
+            s = c.get('skill_matched','none')
+            skill_counts[s] = skill_counts.get(s, 0) + 1
+        skills = [{"skill_matched": k, "cnt": v} for k,v in sorted(skill_counts.items(), key=lambda x: -x[1])]
+
         # Status breakdown
-        statuses = conn.execute(
-            "SELECT status, COUNT(*) as cnt FROM calls GROUP BY status"
-        ).fetchall()
-        
-        # Total stats
-        total = conn.execute("SELECT COUNT(*) as cnt FROM calls").fetchone()
-        avg_dur = conn.execute("SELECT AVG(duration_seconds) as avg FROM calls").fetchone()
-        
-        conn.close()
+        status_counts = {}
+        for c in calls:
+            s = c.get('status','unknown')
+            status_counts[s] = status_counts.get(s, 0) + 1
+        statuses = [{"status": k, "cnt": v} for k,v in status_counts.items()]
+
+        # Totals
+        total = len(calls)
+        avg_dur = round(sum(c.get('duration_seconds',0) for c in calls) / total) if total > 0 else 0
+
         return {
             "daily": days,
-            "skills": [dict(r) for r in skills],
-            "statuses": [dict(r) for r in statuses],
-            "total_calls": total["cnt"],
-            "avg_duration_seconds": round(avg_dur["avg"] or 0)
+            "skills": skills,
+            "statuses": statuses,
+            "total_calls": total,
+            "avg_duration_seconds": avg_dur
         }
     except Exception as e:
         return {"error": str(e), "daily": [], "skills": [], "statuses": [], "total_calls": 0}
