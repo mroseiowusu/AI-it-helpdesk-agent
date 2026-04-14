@@ -157,7 +157,7 @@ def _say(text: str, action_url: str) -> str:
         num_digits="1",
         finish_on_key=""
     )
-    gather.say(text, voice="Polly.Joanna")
+    gather.say(text, voice=_VOICE_CONFIG.get("voice", "Polly.Joanna"))
     vr.append(gather)
     vr.redirect(action_url)
     return str(vr)
@@ -169,11 +169,11 @@ def _parse_emp_id(speech: str) -> str:
 
 def _operator_twiml() -> str:
     vr = VoiceResponse()
-    vr.say("Please hold while I transfer you to a live agent.", voice="Polly.Joanna")
+    vr.say("Please hold while I transfer you to a live agent.", voice=_VOICE_CONFIG.get("voice", "Polly.Joanna"))
     if OPERATOR_PHONE:
         vr.dial(OPERATOR_PHONE)
     else:
-        vr.say("No operator is available right now. Please call back later.", voice="Polly.Joanna")
+        vr.say("No operator is available right now. Please call back later.", voice=_VOICE_CONFIG.get("voice", "Polly.Joanna"))
         vr.hangup()
     return str(vr)
 
@@ -276,7 +276,7 @@ async def respond_to_caller(request: Request):
 
     if any(p in agent_reply.lower() for p in ["goodbye", "take care", "have a great day", "ticket has been logged"]):
         vr = VoiceResponse()
-        vr.say(agent_reply, voice="Polly.Joanna")
+        vr.say(agent_reply, voice=_VOICE_CONFIG.get("voice", "Polly.Joanna"))
         vr.hangup()
         # Log completed call to analytics
         _log_call(
@@ -328,7 +328,7 @@ async def takeover(call_sid: str):
         if client and OPERATOR_PHONE:
             try:
                 client.calls(call_sid).update(
-                    twiml=f'<Response><Say voice="Polly.Joanna">Connecting you to a live agent now.</Say><Dial>{OPERATOR_PHONE}</Dial></Response>'
+                    twiml=f'<Response><Say voice=_VOICE_CONFIG.get("voice", "Polly.Joanna")>Connecting you to a live agent now.</Say><Dial>{OPERATOR_PHONE}</Dial></Response>'
                 )
             except Exception as e:
                 log.error(f"Twilio takeover failed: {e}")
